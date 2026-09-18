@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#315f5b" />
+    <title>One Good Day — Demo 5 ngày</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="phone-shell" aria-label="Bản chơi thử năm ngày của One Good Day">
+      <header class="topbar">
+        <div class="wordmark" aria-label="One Good Day">
+          <span class="wordmark-sun" aria-hidden="true"></span>
+          <span>ONE GOOD DAY</span>
+        </div>
+        <button class="icon-button" id="reset-button" type="button" aria-label="Chơi lại từ đầu">↺</button>
+      </header>
+
+      <section class="status-hud pixel-panel" id="status-hud" aria-label="Trạng thái hiện tại"></section>
+
+      <section id="screen" aria-live="polite"></section>
+    </main>
+
+    <template id="choice-template">
+      <button class="choice pixel-button" type="button" aria-pressed="false">
+        <strong></strong>
+        <span></span>
+      </button>
+    </template>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

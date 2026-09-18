@@ -1,0 +1,14 @@
+# Mira character sheet v0.1 prompt
+
+```text
+Use case: stylized-concept
+Asset type: One Good Day canonical-character-sheet candidate for stable character ID "mira"
+Input images: Image 1 is the approved environment/style reference for native pixel construction, high-key palette, colored outlines, compact cool-teal shadows, and three-step value grouping. Image 2 is the approved close-interaction identity reference; preserve Mira's identity and outfit from this image.
+Primary request: Create one clean model sheet showing the same adult woman, Mira, repeated consistently six times: top row has three evenly spaced full-body views—front, three-quarter, and strict side profile; bottom row has three evenly spaced head-and-shoulders expression views—concerned, amused, and quietly tired. No labels or text.
+Subject identity: compact practical café owner, approximately four heads tall; short rounded dark-chestnut bob with the same side-swept fringe and a small berry-red three-berry hair clip fixed on her right side; simple restrained dark-brown eyes; warm observant face. Preserve one exact outfit in every full-body view: cream rolled-sleeve blouse, honey-amber apron with one front pocket and tied bow, dark warm-brown calf-length skirt, plain brown ankle boots. The three-quarter full-body view may hold one small cream tea cup; other poses keep relaxed empty hands.
+Style/medium: original bright native low-resolution pixel art constructed with deliberate hard-edged pixel clusters, not a detailed illustration with pixel texture. Coherent pixel scale across every view, selective plum-brown or blue-green colored outlines, roughly three clear values per material, broad cloth shapes, restrained facial detail, no glossy anime eyes.
+Composition/framing: horizontal 3:2 reference sheet on a flat pale warm-cream background, generous clean spacing, all three full bodies equal height with feet aligned, all three portrait heads equal size, no scenery, no floor texture, no decorative border, no panel frames.
+Lighting/color: neutral soft high-key daylight; honey apron and berry-red hair detail remain the only strong accents; compact cool-teal shadows; no brown wash.
+Must preserve: same person, same face structure, same hair length and silhouette, hair clip on the same physical side, same body proportions, same clothing construction and colors across all six views. Make the side profile genuinely side-on and distinguish each requested expression through eyebrows, eyelids, mouth, and posture without changing identity.
+Avoid: character redesign between views, mirrored hair accessory, age changes, extra characters, alternate costumes, large chibi head, large glossy eyes, generic anime illustration, high-resolution painting with a pixel filter, smooth gradients, heavy black outlines, retro grading, vintage palette, sepia, muddy colors, dense detail, background objects, text, labels, UI, logos, watermarks.
+```

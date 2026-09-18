@@ -1,0 +1,13 @@
+# Mira festival repairs v0.1 prompt
+
+```text
+Use case: stylized-concept
+Asset: One Good Day production candidate for event ID "mira_festival_repairs_01", rendered without UI or text for the provisional 320x200 logical event-card illustration slot
+References: Image 1 controls the approved high-key native-pixel visual language. Image 2 controls close interaction scale and the modest café exterior context. Image 3 is Mira's canonical identity reference and must control her face, chestnut bob, berry-red three-berry hair accessory, compact approximately four-head proportions, cream rolled-sleeve blouse, honey-amber apron with one pocket and back bow, brown calf-length skirt, and plain brown boots.
+Moment: before the village festival, Mira braces a small wooden café window shutter that has pulled loose from one hinge. She looks toward the offscreen player with practical concern, silently asking for help. The loose hinge and her hands holding the tilted shutter are the single focal action.
+Must preserve: Mira must unmistakably match Image 3; same hair shape and length, facial construction, accessory, outfit construction, colors, body proportions, and restrained concerned expression. The café remains modest, with only a cream plaster wall, one warm amber window, a sliver of wooden doorway, and the loose shutter. No player character is visible.
+Composition: horizontal 8:5 / 16:10 event illustration, medium three-quarter shot at natural character height. Keep Mira's complete face, both hands, the loose hinge, and the tilted shutter inside the central 80% safe region. Use edge areas only for quiet wall and doorway context. The action must read clearly when displayed at 320x200 logical pixels.
+Approved visual language: original bright native low-resolution pixel art constructed from deliberate hard-edged clusters; selective plum-brown and blue-green colored outlines; fresh high-key palette; compact cool-teal shadows; roughly three clear values per material; broad simple cloth and wood shapes; no pixel filter over a detailed illustration.
+Lighting/mood: clear warm morning light with a small amber window glow and compact cool shade; gently urgent, practical, and personal rather than dramatic.
+Avoid: redesigning Mira, different hair accessory, alternate clothes, oversized glossy anime eyes, romantic pose, visible player, extra characters, festival crowd, dense decorations, ladder, tools scattered everywhere, flowers, cat, signs, readable lettering, card frame, title, choice labels, UI, logo, watermark, retro grading, sepia, brown wash, muddy shadows, smooth painterly gradients, high-resolution painting with pixel texture.
+```
