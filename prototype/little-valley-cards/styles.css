@@ -194,7 +194,6 @@ button { color: inherit; font: inherit; }
   text-transform: uppercase;
 }
 .world-card.stack-dragging { transition: none; }
-.world-card.busy { cursor: wait; }
 .world-card.person-card {
   border: 3px solid #28636a;
   background: #f5f9dc;
@@ -222,17 +221,6 @@ button { color: inherit; font: inherit; }
   border-radius: 50%;
   background: #347479;
 }
-.person-card.worker-busy {
-  border-color: #bd7d2d;
-  background: #fff0bd;
-  box-shadow: 0 0 0 3px #f2c95c, 0 5px 0 #765022, 0 11px 19px rgba(74, 48, 22, .34);
-  animation: worker-breathe .85s ease-in-out infinite alternate;
-}
-.person-card.worker-busy .card-kicker { color: #80551d; }
-.person-card.worker-busy .card-kicker b { color: #fff9da; background: #b76f27; }
-.person-card.worker-busy .card-art { border-color: #a86425; }
-.person-card.worker-busy .card-art img { filter: brightness(.72) saturate(.72); }
-@keyframes worker-breathe { to { transform: translateY(-2px); } }
 .world-card.dragging {
   z-index: 2000 !important;
   transition: none;
@@ -276,19 +264,6 @@ button { color: inherit; font: inherit; }
 }
 .card-art img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; pointer-events: none; }
 .square-art .card-art img { object-fit: contain; background: #d9e6a3; }
-.work-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  gap: 3px;
-  color: #fff7ce;
-  background: repeating-linear-gradient(-45deg, rgba(42, 76, 65, .8) 0 8px, rgba(49, 91, 73, .8) 8px 16px);
-  text-align: center;
-  text-shadow: 0 1px 0 #263b30;
-}
-.work-overlay b { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
-.work-overlay em { font-size: 8px; font-style: normal; font-weight: 950; }
 .world-card strong { display: block; overflow: hidden; margin: 6px 2px 2px; font-size: 12px; font-weight: 1000; line-height: 1; white-space: nowrap; text-overflow: ellipsis; }
 .world-card p { height: 20px; overflow: hidden; margin: 0 2px; color: #6a7265; font-size: 7px; font-weight: 700; line-height: 1.25; }
 

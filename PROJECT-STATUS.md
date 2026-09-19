@@ -9,31 +9,33 @@ The game is a portrait farm-management game in which cards are persistent physic
 Core interaction:
 
 1. Drag a Person card onto a valid work stack.
-2. Work occupies that person for visible time.
-3. The stack transforms or spawns new cards onto the same board.
+2. A valid drop resolves the active work immediately.
+3. The stack transforms or spawns new cards onto the same board; crop growth remains timed.
 4. Move those outputs into the next farm process.
 
 The farm is the board. Its spatial clutter and organization should become a readable history of what the player has built.
 
 ## Current validation slice
 
-`prototype/little-valley-cards/` contains one complete physical-board loop:
+`prototype/little-valley-cards/` contains a two-plot physical-board loop operated by one Farmer:
 
 ```text
-Farmer + Wild Soil -> Empty Plot
-Carrot Seeds on Empty Plot, then Farmer -> Carrot Plot
-Farmer + Stone Well -> Water
-Water + Carrot Plot -> timed growth
+Farmer + Wild Soil x2 -> Empty Plot x2
+Farmer + Carrot Seeds -> Farmer [carrying Seeds]
+Farmer [carrying Seeds] + Empty Plot -> Carrot Plot
+Farmer + Stone Well -> Farmer [carrying Water]
+Farmer [carrying Water] + Carrot Plot -> timed growth
 Farmer + Mature Carrots -> Carrots x3
-Carrots + Roadside Market -> Coin Purse x3 -> win
+Carrots + Roadside Market -> Coin Purse x6 -> win
 ```
 
 The build includes:
 
 - a vertically arranged portrait board with freely draggable cards;
+- two competing plots but only one worker, creating the first labour-order decisions;
 - magnetic highlighting for valid targets;
 - multi-card sowing stacks;
-- timed worker jobs and crop growth;
+- instant active work with timed crop growth;
 - spawned Water, Carrots and Coin Purse cards;
 - a two-minute dusk clock that starts on the first valid move and pauses while a card is held;
 - local save and a clean reset;
@@ -47,7 +49,7 @@ Characters are Person cards, not dialogue interfaces or crafting recipes. A stru
 
 For example, an Oven makes bread. Any capable person may operate it; Mira might work faster or reveal a special recipe. Optional backstory should be discovered through mechanical reactions to places and objects, not through a mandatory relationship screen.
 
-NPC characters remain outside the current playable slice until the actor-carrying interaction is resolved.
+NPC characters remain outside the current playable slice until the two-plot, one-worker loop is playtested by the user.
 
 ## Constraints learned from discarded approaches
 
@@ -61,16 +63,20 @@ Their obsolete paper prototypes and GDD were removed from the active tree during
 The prototype now makes the Actor the movable verb for Seeds and Water:
 
 ```text
-Farmer + Water Bucket -> Farmer [carrying Water]
-Farmer [carrying Water] + Carrot Plot -> Farmer + Empty Bucket + Watered Plot
+Farmer + Stone Well -> Farmer [carrying Water]
+Farmer [carrying Water] + Carrot Plot -> Farmer + Watered Plot
 ```
 
-An Actor carries one item as a two-card compound stack. Dragging the Person moves both cards; dragging the exposed item away detaches it safely. The Person title and badge communicate what is carried, target validation reads the actor plus item, and busy state applies to both cards.
+An Actor carries one item as a two-card compound stack. The Actor is always the active verb: dragging the Person onto a loose item picks it up, while Well work attaches Water automatically. Dragging the Person moves both cards; dragging the exposed item away detaches it safely. The Person title and badge communicate what is carried, and target validation reads the actor plus item.
+
+Clear, sow, draw-water, water and harvest actions resolve immediately. The former casting timers, worker jobs, WORKING overlay and busy state were removed because they interrupted the repeatable physical loop. Crop growth and the overall day clock remain timed.
+
+Actor-first must not become forced combo matching. A free Farmer may pick up Seeds or Water before an immediate destination exists and may draw Water before a crop is thirsty. Highlights show physically possible interactions, not the intended recipe step. Hints report world state rather than prescribe exact drags.
 
 The validated prototype sequence is now:
 
 ```text
-Carrot Seeds + Farmer -> Farmer [carrying Seeds]
+Farmer + Carrot Seeds -> Farmer [carrying Seeds]
 Farmer [carrying Seeds] + Empty Plot -> Carrot Plot + Farmer [carrying remaining Seeds]
 Farmer + Stone Well -> Farmer [carrying Water]
 Farmer [carrying Water] + Carrot Plot -> Watered Plot + Farmer
@@ -78,7 +84,9 @@ Farmer [carrying Water] + Carrot Plot -> Watered Plot + Farmer
 
 Water is consumed by watering. A seed unit is consumed by sowing, while remaining seed stays carried until detached or used. The browser loop, mobile portrait layout and automated smoke tests pass without console errors.
 
-The next design checkpoint is a hands-on feel test of this grammar. Do not add NPCs or broader content until carrying, detaching and actor-led targeting feel natural. Only after that should the board add a second plot and then a second worker.
+The board now starts with two Wild Soil cards, two Seeds and one Farmer. Winning requires selling two harvests for six coins. Automated coverage verifies worker contention, sequential sowing and watering, parallel crop growth, two harvests and the final sale; the full browser loop also passes on a 390 × 844 portrait viewport.
+
+The next design checkpoint is a hands-on feel test of the two-plot labour pressure. Do not add broader content yet. If this remains readable and enjoyable, the next isolated experiment is a second Person card with one clear mechanical specialization.
 
 ## Art status
 

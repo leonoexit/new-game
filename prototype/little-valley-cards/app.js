@@ -8,7 +8,6 @@ import {
   detachItem,
   findCard,
   hydrateGame,
-  isBusy,
   moveCard,
   resolveDrop,
   togglePause,
@@ -34,10 +33,6 @@ function save() {
   localStorage.setItem(GAME.storageKey, JSON.stringify(state));
 }
 
-function jobFor(cardId) {
-  return state.jobs.find((job) => job.targetId === cardId || job.workerId === cardId) ?? null;
-}
-
 function detailFor(item) {
   if (item.typeId === "watered_carrots") {
     return `${Math.max(1, Math.ceil((item.meta.growthRemainingMs ?? 0) / 1000))}s until mature`;
@@ -47,26 +42,21 @@ function detailFor(item) {
 
 function renderCard(item) {
   const definition = CARD_DEFS[item.typeId];
-  const job = jobFor(item.id);
-  const busy = isBusy(state, item.id);
   const isPerson = definition.kind === "Person";
-  const isWorking = Boolean(job && job.workerId === item.id);
   const attached = Boolean(item.meta.parentId);
   const carrying = isPerson ? carriedItem(state, item.id) : null;
-  const statusBadge = isWorking ? "Working" : carrying ? "Carrying" : isPerson ? "Ready" : attached ? "Carried" : definition.badge;
+  const statusBadge = carrying ? "Carrying" : isPerson ? "Ready" : attached ? "Carried" : definition.badge;
   const parent = attached ? findCard(state, item.meta.parentId) : null;
   const z = parent ? Math.round(parent.y) + 29 : Math.round(item.y) + (item.typeId === "farmer" ? 30 : 0);
   return `
-    <article class="world-card ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${isWorking ? "worker-busy" : ""} ${busy ? "busy" : ""} ${attached ? "attached" : ""}"
-      data-card-id="${item.id}" style="--x:${item.x}; --y:${item.y}px; --z:${z}" aria-label="${cardLabel(state, item)}${isWorking ? ", working" : ""}">
+    <article class="world-card ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${attached ? "attached" : ""}"
+      data-card-id="${item.id}" style="--x:${item.x}; --y:${item.y}px; --z:${z}" aria-label="${cardLabel(state, item)}">
       <div class="card-kicker"><span class="kind-label">${isPerson ? `<i class="actor-glyph" aria-hidden="true"></i>` : ""}${definition.kind}</span>${statusBadge ? `<b>${statusBadge}</b>` : ""}</div>
       <div class="card-art">
         <img src="${definition.art}" alt="" draggable="false" />
-        ${isWorking ? `<span class="work-overlay"><b>Working</b><em data-work-time="${job.id}">${Math.ceil(job.remainingMs / 1000)}s</em></span>` : ""}
       </div>
       <strong>${cardLabel(state, item)}</strong>
       <p>${carrying ? `${CARD_DEFS[carrying.typeId].name} attached · drag the stack` : detailFor(item)}</p>
-      ${job ? `<div class="progress-shell"><i class="job-progress" data-job-id="${job.id}" style="width:${100 * (1 - job.remainingMs / job.durationMs)}%"></i></div>` : ""}
       ${item.typeId === "watered_carrots" ? `<div class="progress-shell crop"><i class="crop-progress" data-card-progress="${item.id}"></i></div>` : ""}
     </article>`;
 }
@@ -87,7 +77,7 @@ function render() {
 
       <section class="goal-strip">
         <span>Today's goal</span>
-        <strong>Sell your first harvest</strong>
+        <strong>Sell two harvests</strong>
         <b id="coin-goal">${coins()} / ${GAME.goalCoins} coins</b>
       </section>
 
@@ -112,10 +102,10 @@ function render() {
         <div class="result-layer">
           <section class="result-card ${state.phase}">
             <span class="result-mark">${state.phase === "won" ? "☀" : "☾"}</span>
-            <small>${state.phase === "won" ? "First sale" : "Dusk"}</small>
-            <h1>${state.phase === "won" ? "The farm made something real." : "The market closed."}</h1>
+            <small>${state.phase === "won" ? "Two harvests" : "Dusk"}</small>
+            <h1>${state.phase === "won" ? "One pair of hands managed two plots." : "The market closed."}</h1>
             <p>${state.phase === "won"
-              ? "You cleared land, grew a crop, harvested it and sold the result — all on one persistent board."
+              ? "You chose how one Farmer moved between two competing plots and brought both harvests to market."
               : "The cards remain understandable, but the work needs a quicker route."}</p>
             <button id="play-again">Try another day</button>
           </section>
@@ -157,11 +147,6 @@ function startDrag(event) {
   if (state.phase !== "playing") return;
   const element = event.currentTarget;
   const cardId = element.dataset.cardId;
-  if (isBusy(state, cardId)) {
-    showToast("That card is busy.");
-    return;
-  }
-
   event.preventDefault();
   const item = findCard(state, cardId);
   const wasAttached = Boolean(item.meta.parentId);
@@ -265,14 +250,6 @@ function updateLive() {
   if (timeLabel) timeLabel.textContent = `${seconds}s`;
   if (dayProgress) dayProgress.style.width = `${100 * state.remainingMs / GAME.dayLengthMs}%`;
 
-  state.jobs.forEach((job) => {
-    document.querySelectorAll(`[data-job-id="${job.id}"]`).forEach((progress) => {
-      progress.style.width = `${100 * (1 - job.remainingMs / job.durationMs)}%`;
-    });
-    document.querySelectorAll(`[data-work-time="${job.id}"]`).forEach((label) => {
-      label.textContent = `${Math.max(1, Math.ceil(job.remainingMs / 1000))}s`;
-    });
-  });
   state.cards.filter((item) => item.typeId === "watered_carrots").forEach((item) => {
     const progress = document.querySelector(`[data-card-progress="${item.id}"]`);
     if (progress) progress.style.width = `${100 * (1 - item.meta.growthRemainingMs / 7_000)}%`;
@@ -284,10 +261,9 @@ function frame(now) {
   lastFrame = now;
   if (!dragging) {
     const previousPhase = state.phase;
-    const previousJobs = state.jobs.length;
     const result = advance(state, delta);
     state = result.state;
-    if (result.events.length || previousJobs !== state.jobs.length || previousPhase !== state.phase) {
+    if (result.events.length || previousPhase !== state.phase) {
       save();
       render();
       result.events.forEach(showToast);

@@ -11,35 +11,38 @@ Trước khi sửa code, hãy đọc đầy đủ:
 - `STYLE.md` và `little-valley-cards-art-bible-v0.1.md` nếu làm art
 - `.agents/skills/little-valley-cards-art/SKILL.md` nếu tạo hoặc chỉnh raster artwork
 
-Không khôi phục các prototype hoặc tài liệu cũ đã bị loại. Không commit, push hoặc hoàn tác những thay đổi Git hiện có nếu tôi chưa yêu cầu; worktree đang có nhiều intentional deletions từ dự án One Good Day và toàn bộ thay đổi Little Valley Cards hiện vẫn chưa commit.
+Không khôi phục các prototype hoặc tài liệu cũ đã bị loại. Không commit, push hoặc hoàn tác những thay đổi Git hiện có nếu tôi chưa yêu cầu. Pivot Little Valley Cards và Actor Stack v0.2 đã được push lên `origin/main` tại commit `3230a68`; thay đổi two-plot sau commit này có thể vẫn chưa commit.
 
 ## 1. Tóm tắt cốt lõi
 
 Little Valley Cards hiện là game quản lý nông trại mobile màn dọc, trong đó **các lá bài chính là những vật thể vật lý tồn tại trong thế giới**. Không còn hand, draw pile, play-three, Action Points, fixed target row, inventory panel hay UI quan hệ NPC.
 
-Người chơi kéo card trên một persistent board. Person card được giao vào một stack công việc; công việc chiếm dụng người đó trong một khoảng thời gian, sau đó stack biến đổi hoặc sản phẩm mới bật ra ngay trên bàn. Không gian và sự lộn xộn của bàn phải trở thành lịch sử trực quan của trang trại.
+Người chơi kéo card trên một persistent board. Khi Person card được thả vào tương tác hợp lệ, công việc chủ động resolve ngay; stack biến đổi hoặc sản phẩm mới bật ra ngay trên bàn. Chỉ crop growth và đồng hồ ngày còn dùng thời gian. Không gian và sự lộn xộn của bàn phải trở thành lịch sử trực quan của trang trại.
 
-Prototype hiện tại tại `prototype/little-valley-cards/` đã có vòng chơi hoàn chỉnh:
+Prototype hiện tại tại `prototype/little-valley-cards/` đã có vòng chơi hai plot, một Farmer:
 
 ```text
-Farmer + Wild Soil -> Empty Plot
-Carrot Seeds on Empty Plot, then Farmer -> Carrot Plot
-Farmer + Stone Well -> Water
-Water + Carrot Plot -> timed growth
+Farmer + Wild Soil x2 -> Empty Plot x2
+Farmer + Carrot Seeds -> Farmer [carrying Seeds]
+Farmer [carrying Seeds] + Empty Plot -> Carrot Plot
+Farmer + Stone Well -> Farmer [carrying Water]
+Farmer [carrying Water] + Carrot Plot -> timed growth
 Farmer + Mature Carrots -> Carrots x3
-Carrots + Roadside Market -> Coin Purse x3 -> win
+Carrots + Roadside Market -> Coin Purse x6 -> win
 ```
 
 Các tính năng đã chạy:
 
 - kéo/thả card tự do trên board dọc;
 - target hợp lệ phát sáng;
-- worker jobs và crop growth có thời gian;
+- active work resolve ngay; crop growth vẫn có thời gian;
 - card Water, Carrots và Coin Purse được spawn vật lý;
 - đồng hồ hai phút chỉ bắt đầu sau nước đi hợp lệ đầu tiên và tạm dừng khi đang giữ card;
 - local save/reset;
+- hai plot cạnh tranh nhưng chỉ có một Farmer, tạo lựa chọn thứ tự lao động đầu tiên;
+- Actor Stack cho Seeds và Water: attach, kéo compound stack, detach, target validation và item lifecycle;
 - mọi runtime card đều có generated pixel artwork;
-- Person card có visual language riêng: frame teal, icon người và badge `READY`; khi bận chuyển frame vàng, portrait tối, phủ `WORKING` + giây còn lại và có progress trên chính actor.
+- Person card có visual language riêng: frame teal, icon người và badge `READY`/`CARRYING`;
 
 User đã playtest ngày 2026-09-19 và kết luận gameplay **thực sự vui**, tự nguyện loop việc trồng cây nhiều lần dù content còn rất ít. Đây là validation quan trọng: không quay lại các hướng card-hand/pair-matching cũ.
 
@@ -47,15 +50,15 @@ Art direction đã được đóng gói trong project skill `little-valley-cards
 
 ## 2. Mạch tư duy hiện tại
 
-Điểm dừng hiện nay là phát hiện rằng current interaction vẫn bỏ qua một bước vật lý quan trọng. Ví dụ Farmer không nên tạo ra Water rồi để Water tự bay tới ruộng. Actor phải thực sự mang item:
+Actor Stack v0.2 đã được implement và kiểm chứng. Actor thực sự mang item:
 
 ```text
-Farmer + Water Bucket
+Farmer + Stone Well
         -> Farmer [carrying Water]
 
 Farmer [carrying Water] + Carrot Plot
         -> work timer
-        -> Farmer + Empty Bucket + Watered Plot
+        -> Farmer + Watered Plot
 ```
 
 Tương tự:
@@ -65,7 +68,7 @@ Farmer + Seeds -> Farmer [carrying Seeds]
 Farmer [carrying Seeds] + Empty Plot -> Planted Plot
 ```
 
-Ngữ pháp được đề xuất:
+Ngữ pháp hiện tại:
 
 - Actor là chủ thể.
 - Item/tool là thứ actor đang cầm hoặc trang bị.
@@ -73,7 +76,11 @@ Ngữ pháp được đề xuất:
 - Progress là động từ đang diễn ra.
 - Một actor stack di chuyển như một đơn vị; sau công việc item có thể bị tiêu thụ, biến đổi hoặc được trả lại.
 
-Đây không nên được vá riêng cho Water. Nó là thay đổi nền tảng cho toàn bộ interaction engine. Chưa thêm NPC, cây mới, lore hoặc economy lớn cho tới khi actor-carrying stack được kiểm chứng.
+Actor luôn là động từ chủ động: kéo Farmer vào loose Seeds/Water để nhặt; công việc tại Well tự attach Water ngay khi hoàn tất. Kéo Farmer di chuyển cả stack; kéo phần item lộ ra sẽ detach. Seeds tiêu hao từng đơn vị và phần còn lại tiếp tục được mang. Water bị consume sau khi tưới. Busy state áp dụng cho cả actor và carried item.
+
+Không contextual-gate việc nhặt item hoặc dùng Well chỉ để ép đúng recipe order. Farmer có thể chuẩn bị resource trước khi có destination. Highlight diễn đạt khả năng vật lý, không chỉ ra nước đi tối ưu; hint mô tả trạng thái thế giới thay vì ra lệnh kéo card cụ thể.
+
+Board hiện đã có hai Wild Soil, hai seed units và một Farmer. Mục tiêu là bán hai harvest lấy sáu coin. Đây là phép thử đầu tiên về labour pressure mà không thêm crop, NPC hoặc economy mới.
 
 NPC về sau cũng là Person card có chức năng lao động, không phải dialogue tree. Công trình và input quyết định việc gì xảy ra; nhân vật cung cấp lao động và modifier riêng. Lore/backstory là khám phá tùy chọn thông qua phản ứng cơ học với item/location, không có friendship bar hay màn hình quan hệ bắt buộc.
 
@@ -90,35 +97,26 @@ Mục tiêu dài hạn đang được cân nhắc: khôi phục trang trại b�
 
 2. Kiểm tra `git status` và bảo toàn toàn bộ intentional deletions/uncommitted work hiện có.
 
-3. Thiết kế **Actor Stack v0.2** trước khi code:
+3. Yêu cầu user playtest trực tiếp loop hai plot, một Farmer. Quan sát:
 
-   - actor mang tối đa một item trong test đầu;
-   - item được attach rõ ràng vào actor;
-   - cả stack kéo đi như một đơn vị;
-   - title/status đọc được như `Farmer · Carrying Water`;
-   - target validation dựa trên actor + carried item + destination;
-   - resolution phải quy định item bị consume, transform hay return;
-   - có cách tháo item khỏi actor mà không làm mất card.
+   - việc chọn thứ tự clear/sow/water/harvest có tạo quyết định thật hay chỉ thêm thao tác;
+   - board có còn đọc được khi hai crop ở các trạng thái khác nhau;
+   - nhịp hai phút và mục tiêu sáu coin có quá dễ hoặc quá gấp;
+   - carrying/detach còn tự nhiên khi chuyển liên tục giữa hai plot.
 
-4. Implement Actor Stack chỉ cho hai chuỗi **Seeds** và **Water**. Tái sử dụng art hiện có; chưa cần gen ảnh mới trừ khi xuất hiện item mới thật sự như Empty Bucket.
-
-5. Cập nhật smoke test để bao phủ attach, move compound stack, detach, resolve, item lifecycle và busy actor state.
-
-6. Chạy browser prototype tại `http://127.0.0.1:8080/`, tự kéo thử toàn bộ loop, kiểm tra console error, sau đó test viewport/mobile portrait. Server có thể không còn chạy ở phiên mới; nếu cần hãy khởi động lại bằng:
+4. Chạy browser prototype tại `http://127.0.0.1:8080/`, kiểm tra console và mobile portrait. Server có thể không còn chạy ở phiên mới; nếu cần hãy khởi động lại bằng:
 
    ```sh
    python3 -m http.server 8080
    ```
 
-7. Chỉ sau khi Actor Stack cảm thấy tự nhiên mới thêm hai plot + một Farmer để tạo lựa chọn lao động thật. Sau đó mới test nhân vật thứ hai như Mira.
+5. Nếu two-plot loop vẫn vui và rõ ràng, thử Person card thứ hai như Mira với đúng một specialization cơ học. Chưa thêm crop, lore hoặc economy lớn trong cùng experiment.
 
 ## 4. Những điều còn bỏ ngỏ
 
-- Actor stack nên hiển thị hai card lệch nhau hay hợp thành một card tạm thời?
-- Khi actor cầm item, người chơi kéo card actor hay kéo cả vùng stack?
-- Thả item khỏi actor bằng thao tác nào để hợp mobile: kéo ngược ra, tap, hay long-press?
+- Two-plot loop có tạo labour pressure thú vị hay chỉ nhân đôi thao tác?
 - Water nên là `Water`, `Bucket of Water`, hay cần vòng đời `Empty Bucket -> Filled Bucket -> Empty Bucket`?
-- Seeds nên được actor mang trước khi tới plot hay có thể đặt sẵn trên plot như hiện tại? Mục tiêu là chọn một grammar thống nhất, không giữ hai cách chỉ vì code cũ.
+- Nhân vật thứ hai nên tạo parallelism tới mức nào trước khi làm game quá dễ?
 - Khi Farmer thu hoạch, Carrots nên spawn rời trên bàn hay trở thành item đang được Farmer mang?
 - Mobile drag/scroll có glitch nào trên thiết bị thật? Hiện mới kiểm tra trong in-app browser desktop; board background hỗ trợ vertical scroll còn card giữ pointer drag.
 - Hai phút có phải nhịp ngày đúng hay chỉ là thông số test?
@@ -136,4 +134,4 @@ Ngày 2026-09-19 đã loại khỏi active tree:
 
 Chúng được chuyển vào macOS Trash tại `little-valley-cards-cleanup-2026-09-19`, không xoá vĩnh viễn. Những asset Water/Harvest và các source/processed/record khác được giữ vì runtime hiện tại vẫn sử dụng chúng. One Good Day cũ vẫn có thể phục hồi từ Git commit `ebe2196`.
 
-Hãy tiếp tục từ **Actor Stack v0.2**, không mở rộng content trước khi grammar này được playtest.
+Hãy tiếp tục từ **two plots + one Farmer**. Playtest labour pressure trước; nếu đạt, experiment kế tiếp là Person card thứ hai với một specialization rõ ràng.

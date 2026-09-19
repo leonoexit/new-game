@@ -18,17 +18,17 @@ export function createGame() {
     cards: [
       card("farmer", "farmer", 4, 72),
       card("seeds", "carrot_seeds", 66, 72, { amount: 2 }),
-      card("soil", "wild_soil", 35, 258),
+      card("soil", "wild_soil", 35, 250),
+      card("soil2", "wild_soil", 4, 276),
       card("well", "well", 67, 286),
       card("market", "roadside_market", 7, 526),
     ],
-    jobs: [],
-    lastMessage: "Drag Farmer onto Wild Soil.",
+    lastMessage: "Two plots, one Farmer. Choose which Wild Soil to clear first.",
   };
 }
 
 export function hydrateGame(raw) {
-  if (!raw || raw.version !== GAME.version || !Array.isArray(raw.cards) || !Array.isArray(raw.jobs)) return createGame();
+  if (!raw || raw.version !== GAME.version || !Array.isArray(raw.cards)) return createGame();
   const state = clone(raw);
   if (typeof state.started !== "boolean") state.started = false;
   state.paused = false;
@@ -37,12 +37,6 @@ export function hydrateGame(raw) {
 
 export function findCard(state, cardId) {
   return state.cards.find((item) => item.id === cardId) ?? null;
-}
-
-export function isBusy(state, cardId) {
-  const item = findCard(state, cardId);
-  const actorId = item?.meta.parentId ?? cardId;
-  return state.jobs.some((job) => job.workerId === actorId || job.targetId === cardId);
 }
 
 export function carriedItem(state, actorId) {
@@ -57,9 +51,8 @@ export function dropAction(state, sourceId, targetId) {
   if (state.phase !== "playing" || sourceId === targetId) return null;
   const source = findCard(state, sourceId);
   const target = findCard(state, targetId);
-  if (!source || !target || isBusy(state, sourceId) || isBusy(state, targetId)) return null;
+  if (!source || !target) return null;
 
-  if (canCarry(source) && target.typeId === "farmer" && !carriedItem(state, target.id)) return "attach_item";
   if (source.typeId === "carrots" && target.typeId === "roadside_market") return "sell";
 
   if (source.typeId !== "farmer") return null;
@@ -67,6 +60,7 @@ export function dropAction(state, sourceId, targetId) {
   if (carried?.typeId === "carrot_seeds" && target.typeId === "empty_plot") return "sow";
   if (carried?.typeId === "water" && target.typeId === "planted_carrots") return "water_crop";
   if (carried) return null;
+  if (canCarry(target)) return "pick_up_item";
   if (target.typeId === "wild_soil") return "clear_soil";
   if (target.typeId === "well") return "draw_water";
   if (target.typeId === "ready_carrots") return "harvest";
@@ -82,7 +76,7 @@ export function validTargets(state, sourceId) {
 export function moveCard(state, cardId, x, y) {
   const next = clone(state);
   const item = findCard(next, cardId);
-  if (!item || isBusy(next, cardId)) return next;
+  if (!item) return next;
   item.x = clamp(x, 1, 70);
   item.y = clamp(y, 20, 600);
   const carried = carriedItem(next, item.id);
@@ -96,25 +90,11 @@ export function moveCard(state, cardId, x, y) {
 export function detachItem(state, itemId) {
   const next = clone(state);
   const item = findCard(next, itemId);
-  if (!item || !item.meta.parentId || isBusy(next, itemId)) return next;
+  if (!item || !item.meta.parentId) return next;
   const itemName = CARD_DEFS[item.typeId].name;
   delete item.meta.parentId;
   next.lastMessage = `${itemName} detached from Farmer.`;
   return next;
-}
-
-function startJob(state, kind, worker, target, durationMs, sourceId = null) {
-  worker.x = clamp(target.x + 4, 1, 70);
-  worker.y = target.y + 18;
-  state.jobs.push({
-    id: `job-${state.nextId++}`,
-    kind,
-    workerId: worker.id,
-    targetId: target.id,
-    sourceId,
-    durationMs,
-    remainingMs: durationMs,
-  });
 }
 
 function removeCard(state, cardId) {
@@ -136,16 +116,17 @@ export function resolveDrop(state, sourceId, targetId) {
   const source = findCard(next, sourceId);
   const target = findCard(next, targetId);
 
-  if (action === "attach_item") {
-    source.meta.parentId = target.id;
-    source.x = clamp(target.x + 15, 1, 70);
-    source.y = clamp(target.y + 32, 30, 600);
-    next.lastMessage = `Farmer is carrying ${CARD_DEFS[source.typeId].name}. Drag the stack to its destination.`;
+  if (action === "pick_up_item") {
+    target.meta.parentId = source.id;
+    target.x = clamp(source.x + 15, 1, 70);
+    target.y = clamp(source.y + 32, 30, 600);
+    next.lastMessage = `Farmer picked up ${CARD_DEFS[target.typeId].name}. Drag the stack to its destination.`;
   }
 
   if (action === "water_crop") {
-    startJob(next, action, source, target, 2_500, carriedItem(next, source.id).id);
-    next.lastMessage = "Farmer is watering the carrot plot.";
+    const events = [];
+    finishJob(next, { kind: action, workerId: source.id, targetId: target.id, sourceId: carriedItem(next, source.id).id }, events);
+    next.lastMessage = events.at(-1);
   }
 
   if (action === "sell") {
@@ -159,23 +140,27 @@ export function resolveDrop(state, sourceId, targetId) {
   }
 
   if (action === "clear_soil") {
-    startJob(next, action, source, target, 3_500);
-    next.lastMessage = "Farmer is clearing the ground.";
+    const events = [];
+    finishJob(next, { kind: action, workerId: source.id, targetId: target.id }, events);
+    next.lastMessage = events.at(-1);
   }
 
   if (action === "draw_water") {
-    startJob(next, action, source, target, 2_500);
-    next.lastMessage = "Farmer is drawing water.";
+    const events = [];
+    finishJob(next, { kind: action, workerId: source.id, targetId: target.id }, events);
+    next.lastMessage = events.at(-1);
   }
 
   if (action === "sow") {
-    startJob(next, action, source, target, 3_000, carriedItem(next, source.id).id);
-    next.lastMessage = "Farmer is sowing carrot seed.";
+    const events = [];
+    finishJob(next, { kind: action, workerId: source.id, targetId: target.id, sourceId: carriedItem(next, source.id).id }, events);
+    next.lastMessage = events.at(-1);
   }
 
   if (action === "harvest") {
-    startJob(next, action, source, target, 3_500);
-    next.lastMessage = "Farmer is pulling the carrots.";
+    const events = [];
+    finishJob(next, { kind: action, workerId: source.id, targetId: target.id }, events);
+    next.lastMessage = events.at(-1);
   }
 
   return { state: next, ok: true, action, message: next.lastMessage };
@@ -256,11 +241,6 @@ export function advance(state, deltaMs) {
     }
   });
 
-  next.jobs.forEach((job) => { job.remainingMs = Math.max(0, job.remainingMs - deltaMs); });
-  const finished = next.jobs.filter((job) => job.remainingMs === 0);
-  next.jobs = next.jobs.filter((job) => job.remainingMs > 0);
-  finished.forEach((job) => finishJob(next, job, events));
-
   if (events.length) next.lastMessage = events.at(-1);
   if (next.remainingMs === 0 && next.phase === "playing") {
     next.phase = "lost";
@@ -277,28 +257,18 @@ export function togglePause(state) {
 }
 
 export function currentHint(state) {
-  if (state.phase === "won") return "You completed one full farm loop.";
+  if (state.phase === "won") return "You managed two plots through a full farm day.";
   if (state.phase === "lost") return "Reset the day and try a shorter route.";
-  if (state.cards.some((item) => item.typeId === "carrots")) return "Drag Carrots onto Roadside Market.";
-  if (state.cards.some((item) => item.typeId === "ready_carrots")) return "Drag Farmer onto Mature Carrots.";
-  if (state.cards.some((item) => item.typeId === "watered_carrots")) return "The crop is growing. Time pauses while you hold a card.";
-  if (state.cards.some((item) => item.typeId === "planted_carrots")) {
-    const farmer = state.cards.find((item) => item.typeId === "farmer");
-    const carried = farmer && carriedItem(state, farmer.id);
-    if (carried?.typeId === "water") return "Drag Farmer · Carrying Water onto the Carrot Plot.";
-    if (carried) return `Pull ${CARD_DEFS[carried.typeId].name} away from Farmer, then visit the Stone Well.`;
-    if (state.cards.some((item) => item.typeId === "water")) return "Give Water to Farmer.";
-    return "Drag Farmer onto the Stone Well.";
-  }
-  const plot = state.cards.find((item) => item.typeId === "empty_plot");
-  if (plot) {
-    const farmer = state.cards.find((item) => item.typeId === "farmer");
-    const carried = farmer && carriedItem(state, farmer.id);
-    return carried?.typeId === "carrot_seeds"
-      ? "Drag Farmer · Carrying Carrot Seeds onto the Empty Plot."
-      : "Give Carrot Seeds to Farmer.";
-  }
-  return "Drag Farmer onto Wild Soil.";
+  const farmer = state.cards.find((item) => item.typeId === "farmer");
+  const carried = farmer && carriedItem(state, farmer.id);
+  if (carried) return `Farmer is carrying ${CARD_DEFS[carried.typeId].name}.`;
+  if (state.cards.some((item) => item.typeId === "carrots")) return "Fresh produce is waiting on the board.";
+  if (state.cards.some((item) => item.typeId === "ready_carrots")) return "A crop is ready for work.";
+  if (state.cards.some((item) => item.typeId === "planted_carrots")) return "Some planted crops are still thirsty.";
+  if (state.cards.some((item) => item.typeId === "watered_carrots")) return "Some crops are growing; the rest of the farm is still available.";
+  if (state.cards.some((item) => item.typeId === "empty_plot")) return "Cleared soil is available for the next decision.";
+  if (state.cards.some((item) => item.typeId === "wild_soil")) return "Two plots, one Farmer. Organize the day your way.";
+  return "The farm is waiting for your next move.";
 }
 
 export function cardLabel(state, item) {

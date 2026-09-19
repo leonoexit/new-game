@@ -1,8 +1,8 @@
 export const GAME = Object.freeze({
-  version: 4,
+  version: 6,
   dayLengthMs: 120_000,
-  goalCoins: 3,
-  storageKey: "little-valley-physical-board-v4",
+  goalCoins: 6,
+  storageKey: "little-valley-physical-board-v6",
 });
 
 const art = (filename) => `./assets/${filename}`;
@@ -50,7 +50,7 @@ export const CARD_DEFS = Object.freeze({
   carrot_seeds: {
     name: "Carrot Seeds",
     kind: "Item",
-    description: "Give to a Person, then carry to an Empty Plot.",
+    description: "A Person can pick these up for an Empty Plot.",
     art: art("carrot-seeds.png"),
     artShape: "square",
   },
