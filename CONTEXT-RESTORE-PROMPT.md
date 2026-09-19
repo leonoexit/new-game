@@ -80,6 +80,8 @@ Actor luôn là động từ chủ động: kéo Farmer vào loose Seeds/Water �
 
 Không contextual-gate việc nhặt item hoặc dùng Well chỉ để ép đúng recipe order. Farmer có thể chuẩn bị resource trước khi có destination. Highlight diễn đạt khả năng vật lý, không chỉ ra nước đi tối ưu; hint mô tả trạng thái thế giới thay vì ra lệnh kéo card cụ thể.
 
+Interaction v0.3 hỗ trợ song song tap và drag trên cùng engine rule. Tap source rồi tap target phát sáng tương đương drag source vào target; tap lại source hoặc nền board để cancel. Selection là UI state tạm thời, không save, hỗ trợ Enter/Space và tạm dừng đồng hồ ngày giống như đang giữ card. Không được biến selection thành universal pair-recipe UI.
+
 Board hiện đã có hai Wild Soil, hai seed units và một Farmer. Mục tiêu là bán hai harvest lấy sáu coin. Đây là phép thử đầu tiên về labour pressure mà không thêm crop, NPC hoặc economy mới.
 
 NPC về sau cũng là Person card có chức năng lao động, không phải dialogue tree. Công trình và input quyết định việc gì xảy ra; nhân vật cung cấp lao động và modifier riêng. Lore/backstory là khám phá tùy chọn thông qua phản ứng cơ học với item/location, không có friendship bar hay màn hình quan hệ bắt buộc.

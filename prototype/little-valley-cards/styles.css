@@ -227,6 +227,32 @@ button { color: inherit; font: inherit; }
   filter: saturate(1.08);
   box-shadow: 0 9px 0 #26382c, 0 15px 25px rgba(20, 42, 29, .4);
 }
+.world-card.selected-source {
+  z-index: 1900 !important;
+  transform: translateY(-7px) rotate(-1deg);
+  box-shadow: 0 0 0 4px #8ee6d5, 0 8px 0 #214e53, 0 14px 24px rgba(20, 42, 29, .38);
+}
+.world-card.selected-source::before {
+  content: "Selected";
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: -17px;
+  padding: 3px 7px;
+  border: 1px solid #214e53;
+  border-radius: 99px;
+  color: #173b38;
+  background: #9ce5d1;
+  font-size: 6px;
+  font-weight: 1000;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+}
+.world-card.tap-target {
+  animation: target-pulse .85s ease-in-out infinite alternate;
+  box-shadow: 0 0 0 4px #ffe067, 0 5px 0 #2a3b2e, 0 11px 18px rgba(26,50,34,.33);
+}
 .world-card.valid-target {
   animation: target-pulse .85s ease-in-out infinite alternate;
   box-shadow: 0 0 0 4px #ffe067, 0 5px 0 #2a3b2e, 0 11px 18px rgba(26,50,34,.33);

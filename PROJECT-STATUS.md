@@ -73,6 +73,12 @@ Clear, sow, draw-water, water and harvest actions resolve immediately. The forme
 
 Actor-first must not become forced combo matching. A free Farmer may pick up Seeds or Water before an immediate destination exists and may draw Water before a crop is thirsty. Highlights show physically possible interactions, not the intended recipe step. Hints report world state rather than prescribe exact drags.
 
+## Interaction v0.3
+
+Point-and-click and drag-and-drop now coexist as two input paths into the same engine rules. Tapping an actionable card selects it; tapping a highlighted target resolves the same `source -> target` action used by dropping. Tapping the source again or the board background cancels. Dragging remains the faster physical shortcut.
+
+Selection is ephemeral, keyboard-accessible and pauses the day clock just like holding a card. It must remain an input convenience rather than recreating the discarded universal pair-matching interface.
+
 The validated prototype sequence is now:
 
 ```text

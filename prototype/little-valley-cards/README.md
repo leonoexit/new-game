@@ -25,6 +25,18 @@ Carrots + Roadside Market -> Coin Purse x6 -> win
 
 Time starts on the first valid move and pauses while a card is held. Compatible targets glow. Active work resolves immediately on a valid drop; only crop growth and the day clock take time.
 
+## Interaction v0.3
+
+Tap and drag are parallel inputs for the same source-to-target rules:
+
+- tap an actionable card to select it, then tap a glowing target;
+- tap the selected card again or tap the board background to cancel;
+- drag the same source directly onto the same target as a faster physical shortcut;
+- selecting or holding a card pauses the day clock;
+- keyboard Enter/Space follows the same selection path.
+
+Selection is transient UI state and is never saved. It does not introduce a pair-recipe layer: the engine still resolves the same physical source, carried item and world target.
+
 The Actor is always the active verb: drag Farmer onto loose Seeds or Water to pick them up. Farmer may carry an item before it has an immediate destination, and the Well remains usable whenever Farmer is free; the engine does not gate these actions to enforce a recipe order. Water drawn from the Well attaches automatically when that job completes. Drag Farmer to move the compound stack; drag the exposed carried card away only when you deliberately want to detach it. A completed job consumes Water, while a seed stack stays attached until its amount reaches zero.
 
 Hints describe world state rather than prescribing the next card combination. Target glow communicates what is physically possible, not which move is optimal.

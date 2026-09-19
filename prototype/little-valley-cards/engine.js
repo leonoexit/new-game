@@ -73,6 +73,20 @@ export function validTargets(state, sourceId) {
     .map((target) => target.id);
 }
 
+export function tapDecision(state, selectedId, tappedId) {
+  if (state.phase !== "playing") return { kind: "none" };
+  if (selectedId) {
+    if (selectedId === tappedId) return { kind: "clear" };
+    if (dropAction(state, selectedId, tappedId)) {
+      return { kind: "resolve", sourceId: selectedId, targetId: tappedId };
+    }
+    if (validTargets(state, tappedId).length) return { kind: "select", cardId: tappedId };
+    return { kind: "none" };
+  }
+  if (validTargets(state, tappedId).length) return { kind: "select", cardId: tappedId };
+  return { kind: "none" };
+}
+
 export function moveCard(state, cardId, x, y) {
   const next = clone(state);
   const item = findCard(next, cardId);

@@ -13,6 +13,7 @@ import {
   findCard,
   moveCard,
   resolveDrop,
+  tapDecision,
   validTargets,
 } from "./engine.js";
 
@@ -20,6 +21,17 @@ for (const definition of Object.values(CARD_DEFS)) {
   assert.ok(definition.art, `${definition.name} must have generated artwork`);
   await access(fileURLToPath(new URL(definition.art, import.meta.url)));
 }
+
+const tapGame = createGame();
+assert.deepEqual(tapDecision(tapGame, null, "farmer"), { kind: "select", cardId: "farmer" });
+assert.deepEqual(tapDecision(tapGame, "farmer", "farmer"), { kind: "clear" });
+assert.deepEqual(tapDecision(tapGame, "farmer", "soil"), {
+  kind: "resolve",
+  sourceId: "farmer",
+  targetId: "soil",
+});
+assert.deepEqual(tapDecision(tapGame, "farmer", "market"), { kind: "none" });
+assert.deepEqual(tapDecision(tapGame, null, "market"), { kind: "none" });
 
 let game = createGame();
 assert.equal(game.version, 6);
@@ -106,12 +118,17 @@ const app = await readFile(new URL("./app.js", import.meta.url), "utf8");
 const styles = await readFile(new URL("./styles.css", import.meta.url), "utf8");
 assert.match(app, /pointerdown/);
 assert.match(app, /validTargets/);
+assert.match(app, /tapDecision/);
+assert.match(app, /selectedCardId/);
+assert.match(app, /!dragging && !selectedCardId/);
 assert.doesNotMatch(app, /work-overlay|data-work-time|job-progress/);
 assert.match(app, /companionId/);
 assert.match(app, /companionOffsetX/);
 assert.doesNotMatch(app, /\bhand\b|drawPile|playsPerDay/i);
 assert.doesNotMatch(styles, /worker-busy|work-overlay/);
 assert.match(styles, /actor-glyph/);
+assert.match(styles, /selected-source/);
+assert.match(styles, /tap-target/);
 assert.match(styles, /Pull to detach/);
 
-console.log("Fast two-plot smoke test passed: instant work, actor stacks, crop growth, two harvests, trade, and victory.");
+console.log("Interaction v0.3 smoke test passed: tap decisions, drag path, instant work, actor stacks, crop growth, two harvests, trade, and victory.");
