@@ -10,9 +10,11 @@ It is a solo farm-management game represented through persistent physical cards.
 
 The two-plot, one-Farmer loop was playtested positively on 2026-09-19. Protect its speed, tactile movement, direct board feedback, player-organized layout and bright handheld palette.
 
+The three-Land/four-crop direction has now produced a clear planning effect in hands-on play: because not every crop can occupy Land at once, the player naturally compares commitments in their head. Do not add a fourth Land yet. The strongest emotional feedback is also not score excitement but a Tamagotchi-like feeling of caring for a small, cute living thing. Protect persistence, visible care and attachment over optimization pressure.
+
 Interaction v0.3 keeps tap and drag as parallel paths through the same engine. Selection is transient and never saved. Farmer moves with one attached card; dropping that carried card away from a valid target returns it to the Hand. When Farmer carries an item, valid targets glow immediately and can be tapped without selecting Farmer first.
 
-Long-press inspection now works for Hand items as well as board cards. Seed descriptions are generated from crop data and state cost, first-harvest watering time, yield and regrow behavior explicitly.
+Long-press inspection now works for Hand items as well as board cards. It opens a focused overlay with the enlarged physical card above its description. Seed descriptions are generated from crop data and state cost, first-harvest watering time, yield and post-harvest behavior explicitly.
 
 Farm Lane and semantic board zones were removed. Farm and Town now use separate generated native-pixel table backgrounds to communicate Area without reserving board space. Card descriptions are hidden during normal play and appear only after a long press. Carried item cards render above Farmer.
 
@@ -52,7 +54,7 @@ The Hand exposes a **Return item** action so the carried card can be returned be
 
 ## Flexible preparation order
 
-Home Farm has a finite two-field capacity. One field begins as an Empty Plot and one as Wild Soil, so land preparation is taught once without making every field start overgrown. Both cards carry persistent land identity through every soil and crop transformation; no runtime action creates more Land.
+Home Farm has a finite three-field capacity. One field begins as an Empty Plot and two as Wild Soil, so expansion happens by working land that already exists on the Farm. All three cards carry persistent land identity through every soil and crop transformation; no runtime action creates more Land.
 
 Cleared soil can be watered before Seeds are sown:
 
@@ -88,9 +90,22 @@ Wild Soil requires the Sickle and then the Hoe before either sow/water path. Onc
 - The vines need two watered nights to regrow; missed water pauses them like Carrots.
 - Dry, watered, mature, seed and produce states have dedicated runtime artwork.
 
+## Potato crop lifecycle v0.1
+
+- Potato Seeds cost two coins and need two watered nights.
+- Mature Potatoes require the Hoe instead of free-hand harvest.
+- The first dig costs 1 AP, yields two Potatoes and leaves visible Potato Mounds on the same Land.
+- The second dig costs 1 AP, yields two more Potatoes and returns the Land to an Empty Plot.
+- The total yield is deterministic `2 + 2`; there is no harvest RNG or reload incentive.
+- Potato Mounds persist across Spring Weeks and count as one completed harvest only after the second dig.
+- Potato Seeds and Produce consolidate by quantity, rain waters growing Potatoes, and the Sickle can remove growing or mature Potato crops.
+- Young, watered, mature, mound, Seed and Produce states have dedicated approved native-pixel artwork.
+
 ## Money and economy
 
-Money is now a numeric HUD unit (`state.coins`), not a Coin Purse card. The General Store sells one Carrot Seed for one coin or one Green Bean Seed for two coins. Repeated purchases increase the quantity on the matching Seed card.
+Money is now a numeric HUD unit (`state.coins`), not a Coin Purse card. The General Store sells one Carrot Seed for one coin, or one Green Bean/Potato Seed for two coins. Repeated purchases increase the quantity on the matching Seed card.
+
+The General Store no longer embeds always-visible purchase buttons. Farmer physically targets the Store through tap or drag, then a temporary tray presents the current Seed cards with cost, first harvest, yield and post-harvest behavior. Opening the tray and buying remain free actions; Town travel still costs AP.
 
 Six coins remain a milestone and never lock the simulation. The seven-day boundary now limits how many purchase, growth and shipment cycles fit into one balance run.
 

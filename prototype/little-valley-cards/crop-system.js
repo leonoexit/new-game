@@ -9,7 +9,10 @@ export function cropActionFor(carried, target) {
   if (carried?.typeId === "watering_can" && (carried.meta.charges ?? 0) > 0 && target.typeId === "empty_plot") return "water_plot";
   if (carried?.typeId === "watering_can" && (carried.meta.charges ?? 0) > 0
     && CARD_DEFS[target.typeId]?.cropState === "thirsty") return "water_crop";
-  if (!carried && CARD_DEFS[target.typeId]?.cropState === "ready") return "harvest";
+  const targetCrop = cropForType(target.typeId);
+  if (targetCrop?.harvestTool && carried?.typeId === targetCrop.harvestTool
+    && ["ready", "partial_harvest"].includes(CARD_DEFS[target.typeId]?.cropState)) return "dig_potatoes";
+  if (!carried && CARD_DEFS[target.typeId]?.cropState === "ready" && !targetCrop?.harvestTool) return "harvest";
   return null;
 }
 
@@ -73,6 +76,25 @@ export function applyCropJob(state, job, helpers, events) {
     state.seasonStats.harvestCount += 1;
     const regrowMessage = crop.regrowDays > 0 ? ` The vines remain and can regrow in ${crop.regrowDays} watered nights.` : "";
     events.push(`Farmer harvests ${crop.harvestAmount} ${crop.name} by hand and adds them to the Hand.${regrowMessage}`);
+    return true;
+  }
+  if (job.kind === "dig_potatoes") {
+    const crop = cropForType(target.typeId);
+    if (!crop?.partialTypeId || !crop.harvestSteps) return false;
+    const firstDig = target.typeId === crop.readyTypeId;
+    const amount = crop.harvestSteps[firstDig ? 0 : 1];
+    if (firstDig) {
+      target.typeId = crop.partialTypeId;
+      target.meta = { ...meta, cropId: crop.id };
+    } else {
+      target.typeId = "empty_plot";
+      target.meta = meta;
+      state.seasonStats.harvestCount += 1;
+    }
+    spawn(state, crop.produceTypeId, target.x + 28, target.y + 54, { amount, inHand: true });
+    events.push(firstDig
+      ? `Farmer digs up ${amount} ${crop.name} with the Hoe. Four mounds remain for a second dig.`
+      : `Farmer digs up ${amount} more ${crop.name}. The Land returns to an Empty Plot.`);
     return true;
   }
   return false;

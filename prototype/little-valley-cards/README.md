@@ -22,7 +22,7 @@ Open <http://127.0.0.1:8080/>. State saves locally. **Reset farm** starts clean.
 Hoe, Watering Can and Sickle begin in the bottom Hand instead of occupying the board.
 
 - Tap/play an item card to equip it. If Farmer is carrying another portable card, the two cards swap.
-- Hold an item card in the Hand to inspect its full description without playing it.
+- Hold an item card in the Hand to inspect it without playing it. Inspection enlarges the physical card and places its full description directly below.
 - Drag a loose portable card into the Hand to store it. A carried card returns to the Hand when dropped away from a valid target.
 - Tools, Seeds and harvested Carrots are portable.
 - Farmer has one carrying slot.
@@ -35,7 +35,9 @@ Hoe, Watering Can and Sickle begin in the bottom Hand instead of occupying the b
 
 Money is `state.coins` and appears in the top HUD. There is no Coin Purse card.
 
-The General Store sells one Seed unit per purchase: one coin buys one Carrot Seed, while two coins buy one slower regrowing Green Bean Seed. Repeated purchases increase the matching Seed card's `×N` quantity. Farmer must be in Town to buy. Six coins remain a non-blocking milestone within the seven-day run.
+The General Store sells one Seed unit per purchase: one coin buys one Carrot Seed; two coins buy either a slower regrowing Green Bean Seed or a Potato Seed. Repeated purchases increase the matching Seed card's `×N` quantity. Farmer must be in Town to buy. Six coins remain a non-blocking milestone within the seven-day run.
+
+The Store is opened through the same physical interaction grammar as farm work: select Farmer, then select the General Store (or drag Farmer onto it). A tray of the currently available Seed cards then appears. Buying from those cards is free and does not spend AP; travelling to Town still costs 1 AP.
 
 ## Areas and Landmark play
 
@@ -58,7 +60,7 @@ Hoe + Cleared Ground -> Empty Plot
 
 The Sickle can also remove any thirsty, watered or mature crop. Removal costs 1 AP, produces nothing and returns that same Land card to an Empty Plot. This keeps persistent regrowing crops from locking a field forever.
 
-Home Farm currently has exactly two persistent Land cards: one starts as an Empty Plot and one as Wild Soil. Preparing and harvesting transform those same cards; Land is never spawned or consumed. Once prepared, a field does not become Wild Soil again.
+Home Farm currently has exactly three persistent Land cards: one starts as an Empty Plot and two as Wild Soil. Preparing and harvesting transform those same cards; Land is never spawned or consumed. Once prepared, a field does not become Wild Soil again.
 
 Mature Carrots are pulled by hand, not with a Tool. Farmer must have free hands, and the harvested Carrots go directly into the Hand.
 
@@ -89,6 +91,12 @@ Carrots require two watered nights. At End Day, each watered crop advances one s
 ## Green Bean crop lifecycle
 
 Green Beans create the first strategic crop contrast. One Seed costs two coins, needs three watered nights for its first harvest and produces four Beans. A Carrot Seed costs one coin, needs two watered nights and is consumed after one harvest. Harvesting Green Beans keeps the vines on the same Land card; two more watered nights produce the next harvest. Missed water still pauses rather than killing the crop.
+
+## Potato crop lifecycle
+
+One Potato Seed costs two coins and needs two watered nights. Mature Potatoes cannot be harvested by hand: Farmer must carry the Hoe. The first 1 AP dig yields two Potatoes and transforms the same Land into visible Potato Mounds. A second 1 AP dig yields two more, consolidates the Produce card to `×4`, and returns that Land to an Empty Plot. The deterministic `2 + 2` reveal gives Potatoes a digging rhythm without RNG or reload incentives.
+
+Rain waters thirsty Potatoes normally. The Sickle can remove growing or mature Potatoes without Produce. A partially dug Potato Mound persists across Spring Weeks and is completed with the Hoe; the Weekly Journal counts the crop once after the second dig.
 
 ## Day-only time experiment
 
@@ -144,7 +152,7 @@ repeat with persistent Tools and growing coin total
 - Drag a Landmark card from the Hand onto the table to travel; a simple tap does not change Area.
 - Drag portable cards into the Hand to store them.
 - Keyboard Enter/Space follows the board selection path.
-- Card descriptions stay hidden during play. Hold a card to inspect its description.
+- Card descriptions stay hidden during play. Hold a card to open an enlarged-card inspection overlay with the description directly below it.
 - Seed descriptions include purchase cost, watered nights to first harvest, yield and regrow behavior.
 - Dragging a carried item onto a glowing target uses it through Farmer. Dropping it anywhere else returns it to the Hand.
 - Resolving work never moves Farmer automatically; the board layout remains where the player arranged it.
@@ -153,7 +161,7 @@ Farm and Town use distinct generated native-pixel table backgrounds rather than 
 
 ## Intentional scope
 
-- One Farmer, one of each Tool, two finite persistent fields, Carrots, regrowing Green Beans, one Well, one General Store, one Shipping Bin and two Areas with one Landmark each.
+- One Farmer, one of each Tool, three finite persistent fields, Carrots, regrowing Green Beans, two-dig Potatoes, one Well, one General Store, one Shipping Bin and two Areas with one Landmark each.
 - No draw pile, dialogue, relationship UI, Weather, multiple seasons, NPC or location graph. Spring Week is a deliberately narrow crop-balance slice.
 - Hand is the presentation layer for persistent physical cards, not a second abstract item database.
 - Tool is a concrete behavior family; the rest of the ontology remains open.

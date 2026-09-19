@@ -27,6 +27,7 @@ export function createGame() {
       card("town-landmark", "valley_town_landmark", 0, 0, { areaId: "town", inHand: true, fixed: true }),
       card("soil", "empty_plot", 35, 150, { areaId: "farm", isLand: true }),
       card("soil2", "wild_soil", 4, 230, { areaId: "farm", isLand: true }),
+      card("soil3", "wild_soil", 35, 310, { areaId: "farm", isLand: true }),
       card("well", "well", 67, 230, { areaId: "farm" }),
       card("hoe", "hoe", 0, 0, { inHand: true }),
       card("watering-can", "watering_can", 0, 0, { charges: 0, inHand: true }),
@@ -35,12 +36,12 @@ export function createGame() {
       card("shipping", "shipping_bin", 67, 350, { amount: 0, areaId: "farm" }),
     ],
     milestones: { firstSixCoins: false },
-    lastMessage: `Day 1 begins with ${GAME.actionPointsPerDay} AP. One Plot is ready; one patch is still wild.`,
+    lastMessage: `Day 1 begins with ${GAME.actionPointsPerDay} AP. One Plot is ready; two patches are still wild.`,
   };
 }
 
 export function hydrateGame(raw) {
-  if (!raw || ![16, 17, GAME.version].includes(raw.version) || !Array.isArray(raw.cards)) return createGame();
+  if (!raw || ![16, 17, 18, 19, GAME.version].includes(raw.version) || !Array.isArray(raw.cards)) return createGame();
   const state = clone(raw);
   state.version = GAME.version;
   if (!Number.isFinite(state.day)) state.day = 1;
@@ -67,6 +68,9 @@ export function hydrateGame(raw) {
     state.actionPoints = GAME.actionPointsPerDay;
     state.seasonStats = { coinsEarned: 0, harvestCount: 0 };
     state.seasonSummary = null;
+  }
+  if (!state.cards.some((item) => item.id === "soil3")) {
+    state.cards.push(card("soil3", "wild_soil", 35, 310, { areaId: "farm", isLand: true }));
   }
   consolidateStackableCards(state);
   return state;
@@ -168,6 +172,7 @@ export function dropAction(state, sourceId, targetId) {
 
   if (source.typeId !== "farmer") return null;
   const carried = carriedItem(state, source.id);
+  if (target.typeId === "general_store") return "browse_store";
   const cropAction = cropActionFor(carried, target);
   if (cropAction) return cropAction;
   if (carried?.typeId === "sickle" && target.typeId === "wild_soil") return "clear_grass";
@@ -363,6 +368,10 @@ export function resolveDrop(state, sourceId, targetId) {
   const target = findCard(next, targetId);
   const events = [];
 
+  if (action === "browse_store") {
+    events.push("The General Store lays out its Spring Seed cards.");
+  }
+
   if (action === "pick_up_item") {
     delete target.meta.inHand;
     delete target.meta.areaId;
@@ -389,7 +398,7 @@ export function resolveDrop(state, sourceId, targetId) {
     events.push(`${amount} carried ${produceName} packed for tonight's shipment.`);
   }
 
-  if (["clear_grass", "till_soil", "refill_watering_can", "water_plot", "sow", "sow_watered", "water_crop", "harvest", "remove_crop"].includes(action)) {
+  if (["clear_grass", "till_soil", "refill_watering_can", "water_plot", "sow", "sow_watered", "water_crop", "harvest", "dig_potatoes", "remove_crop"].includes(action)) {
     finishJob(next, {
       kind: action,
       workerId: source.id,
@@ -414,7 +423,7 @@ function finishJob(state, job, events) {
   const areaId = target.meta.areaId;
   const landMeta = { areaId, isLand: true };
 
-  if (["water_plot", "sow", "sow_watered", "water_crop", "harvest", "remove_crop"].includes(job.kind)) {
+  if (["water_plot", "sow", "sow_watered", "water_crop", "harvest", "dig_potatoes", "remove_crop"].includes(job.kind)) {
     applyCropJob(state, job, { findCard, removeCard, spawn }, events);
   }
 
@@ -485,7 +494,7 @@ export function endDay(state) {
   if (seasonEnded) {
     next.phase = "weekly_journal";
     next.actionPoints = 0;
-    const cropsGrowing = next.cards.filter((item) => ["thirsty", "watered", "ready"].includes(CARD_DEFS[item.typeId]?.cropState)).length;
+    const cropsGrowing = next.cards.filter((item) => ["thirsty", "watered", "ready", "partial_harvest"].includes(CARD_DEFS[item.typeId]?.cropState)).length;
     next.seasonSummary = { ...next.seasonStats, cropsGrowing };
     events.push(`${GAME.seasonName} Week ${next.week} is complete. The farm carries on.`);
   } else {
@@ -515,10 +524,12 @@ export function currentHint(state) {
   const carried = farmer && carriedItem(state, farmer.id);
   const bin = state.cards.find((item) => item.typeId === "shipping_bin");
   if (farmerArea(state) === "town") {
-    if (state.coins >= Math.min(...Object.values(CROPS).map((crop) => crop.seedBundleCost))) return "The General Store has two crops to choose from. Drag Home Farm onto the table when ready.";
+    if (state.coins >= Math.min(...Object.values(CROPS).map((crop) => crop.seedBundleCost))) return "The General Store has Spring Seeds to choose from. Drag Home Farm onto the table when ready.";
     return "Valley Town is open to inspect. Drag the Home Farm Landmark onto the table to return.";
   }
   if (state.actionPoints <= 0) return "No AP remains. Free actions still work; end the day when ready to recover.";
+  if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "partial_harvest")) return "Potato Mounds remain. Equip the Hoe to finish digging.";
+  if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "ready" && cropForType(item.typeId)?.harvestTool)) return "Mature Potatoes are ready. Equip the Hoe to dig them.";
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "ready")) return carried
     ? "A crop is ready. Free Farmer's hands to harvest it."
     : "A mature crop is ready to harvest by hand.";
@@ -528,7 +539,7 @@ export function currentHint(state) {
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "thirsty")) return "A planted crop still needs water.";
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "watered")) return "End the day when ready; watered crops grow overnight.";
   if (state.cards.some((item) => item.typeId === "watered_empty_plot")) return "Watered soil is ready for Seeds.";
-  if (!state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "seeds") && state.coins >= 2) return "The General Store has Carrot and Green Bean Seeds.";
+  if (!state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "seeds") && state.coins >= 2) return "The General Store has Carrot, Green Bean and Potato Seeds.";
   if (state.cards.some((item) => item.typeId === "empty_plot")) return "Cleared soil can be watered or sown first.";
   if (state.cards.some((item) => item.typeId === "cleared_ground")) return "Equip the Hoe to till the Cleared Ground.";
   if (state.cards.some((item) => item.typeId === "wild_soil")) return "Equip the Sickle to cut the grass.";
