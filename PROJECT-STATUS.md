@@ -4,111 +4,139 @@
 
 Little Valley Cards is the only active direction.
 
-The game is a portrait farm-management game in which cards are persistent physical objects in the world. It no longer uses a hand, draw pile, play limit, action points or fixed row of targets.
+It is a solo farm-management game represented through persistent physical cards. Cards, stacks and transformations are the world. There is no draw pile, play limit or fixed target row. The current runtime has no Action Point system yet; the lower screen is a physical **Hand** of persistent cards, not a random-card system.
 
-Core interaction:
+## Validated foundation
 
-1. Drag a Person card onto a valid work stack.
-2. A valid drop resolves the active work immediately.
-3. The stack transforms or spawns new cards onto the same board; crop growth remains timed.
-4. Move those outputs into the next farm process.
+The two-plot, one-Farmer loop was playtested positively on 2026-09-19. Protect its speed, tactile movement, direct board feedback, player-organized layout and bright handheld palette.
 
-The farm is the board. Its spatial clutter and organization should become a readable history of what the player has built.
+Interaction v0.3 keeps tap and drag as parallel paths through the same engine. Selection is transient and never saved. Farmer moves with one attached card and can detach it by dragging the exposed card.
 
-## Current validation slice
+## Hand experiment
 
-`prototype/little-valley-cards/` contains a two-plot physical-board loop operated by one Farmer:
+The Backpack UI was removed. The lower screen is now the Hand, where persistent physical cards are sorted into two groups: portable item cards together, and Landmark cards together.
 
-```text
-Farmer + Wild Soil x2 -> Empty Plot x2
-Farmer + Carrot Seeds -> Farmer [carrying Seeds]
-Farmer [carrying Seeds] + Empty Plot -> Carrot Plot
-Farmer + Stone Well -> Farmer [carrying Water]
-Farmer [carrying Water] + Carrot Plot -> timed growth
-Farmer + Mature Carrots -> Carrots x3
-Carrots + Roadside Market -> Coin Purse x6 -> win
-```
+- Hoe, Watering Can and Sickle begin in the Hand.
+- Tap/play an item card from the Hand to equip it; the previously carried card returns to the Hand.
+- Drag any loose or attached portable card into the Hand to store it.
+- Tools, Seeds and Carrots are portable.
+- Farmer has one shared carrying slot.
+- Home Farm and Valley Town Landmark cards stay in the Landmark group.
+- Playing a Landmark card changes the active Area immediately; the Landmark remains in the Hand.
 
-The build includes:
+Hand membership is a positional state on the same card object. It does not clone, consume or replace the card and is not an abstract inventory database.
 
-- a vertically arranged portrait board with freely draggable cards;
-- two competing plots but only one worker, creating the first labour-order decisions;
-- magnetic highlighting for valid targets;
-- multi-card sowing stacks;
-- instant active work with timed crop growth;
-- spawned Water, Carrots and Coin Purse cards;
-- a two-minute dusk clock that starts on the first valid move and pauses while a card is held;
-- local save and a clean reset;
-- generated pixel artwork on every runtime card.
+## Persistent Tool system
 
-This is an interaction prototype, not the production economy. On 2026-09-19 the user playtested it, described the gameplay as genuinely fun, and repeatedly looped the farming sequence voluntarily. The physical-card farm loop is therefore validated strongly enough to continue.
+- **Sickle** cuts grass from Wild Soil, producing Cleared Ground.
+- **Hoe** tills Cleared Ground into an Empty Plot.
+- **Watering Can** refills at the Stone Well and waters prepared soil or thirsty crops.
+- **Mature Carrots** are harvested by Farmer's free hands, not by a Tool, and enter the Hand immediately.
 
-## Character direction
+Each Tool exists exactly once and is never consumed. Watering Can is one card with two charges. The Stone Well only changes its charge state and never creates Water or another container.
 
-Characters are Person cards, not dialogue interfaces or crafting recipes. A structure and its inputs define the work; a person supplies labour and may modify speed, yield or available outcomes.
+The Hand exposes a **Free hands** action so the carried card can be returned before harvesting.
 
-For example, an Oven makes bread. Any capable person may operate it; Mira might work faster or reveal a special recipe. Optional backstory should be discovered through mechanical reactions to places and objects, not through a mandatory relationship screen.
+## Flexible preparation order
 
-NPC characters remain outside the current playable slice until the two-plot, one-worker loop is playtested by the user.
-
-## Constraints learned from discarded approaches
-
-- The five-card hand / play-three structure made days feel abstract and disposable.
-- The universal tap-two-cards pair table felt like matching recipes while staring at a static row.
-
-Their obsolete paper prototypes and GDD were removed from the active tree during the 2026-09-19 cleanup.
-
-## Actor Stack v0.2
-
-The prototype now makes the Actor the movable verb for Seeds and Water:
+Cleared soil can be watered before Seeds are sown:
 
 ```text
-Farmer + Stone Well -> Farmer [carrying Water]
-Farmer [carrying Water] + Carrot Plot -> Farmer + Watered Plot
+Empty Plot + Watering Can -> Watered Plot
+Watered Plot + Seeds -> Watered Carrot Plot
 ```
 
-An Actor carries one item as a two-card compound stack. The Actor is always the active verb: dragging the Person onto a loose item picks it up, while Well work attaches Water automatically. Dragging the Person moves both cards; dragging the exposed item away detaches it safely. The Person title and badge communicate what is carried, and target validation reads the actor plus item.
-
-Clear, sow, draw-water, water and harvest actions resolve immediately. The former casting timers, worker jobs, WORKING overlay and busy state were removed because they interrupted the repeatable physical loop. Crop growth and the overall day clock remain timed.
-
-Actor-first must not become forced combo matching. A free Farmer may pick up Seeds or Water before an immediate destination exists and may draw Water before a crop is thirsty. Highlights show physically possible interactions, not the intended recipe step. Hints report world state rather than prescribe exact drags.
-
-## Interaction v0.3
-
-Point-and-click and drag-and-drop now coexist as two input paths into the same engine rules. Tapping an actionable card selects it; tapping a highlighted target resolves the same `source -> target` action used by dropping. Tapping the source again or the board background cancels. Dragging remains the faster physical shortcut.
-
-Selection is ephemeral, keyboard-accessible and pauses the day clock just like holding a card. It must remain an input convenience rather than recreating the discarded universal pair-matching interface.
-
-The validated prototype sequence is now:
+The former order remains valid:
 
 ```text
-Farmer + Carrot Seeds -> Farmer [carrying Seeds]
-Farmer [carrying Seeds] + Empty Plot -> Carrot Plot + Farmer [carrying remaining Seeds]
-Farmer + Stone Well -> Farmer [carrying Water]
-Farmer [carrying Water] + Carrot Plot -> Watered Plot + Farmer
+Empty Plot + Seeds -> thirsty Carrot Plot
+thirsty Carrot Plot + Watering Can -> Watered Carrot Plot
 ```
 
-Water is consumed by watering. A seed unit is consumed by sowing, while remaining seed stays carried until detached or used. The browser loop, mobile portrait layout and automated smoke tests pass without console errors.
+Wild Soil still requires the Hoe before either path.
 
-The board now starts with two Wild Soil cards, two Seeds and one Farmer. Winning requires selling two harvests for six coins. Automated coverage verifies worker contention, sequential sowing and watering, parallel crop growth, two harvests and the final sale; the full browser loop also passes on a 390 × 844 portrait viewport.
+## Money and economy
 
-The next design checkpoint is a hands-on feel test of the two-plot labour pressure. Do not add broader content yet. If this remains readable and enjoyable, the next isolated experiment is a second Person card with one clear mechanical specialization.
+Money is now a numeric HUD unit (`state.coins`), not a Coin Purse card. The General Store is a Town card with a direct Buy Seeds action; purchased Seeds enter the Hand.
+
+Six coins remain a milestone and never lock the simulation. The repeat economy still reaches ten coins after a second purchase and shipment cycle.
+
+## Time experiment after playtest
+
+The user did not feel a meaningful effect from Morning/Afternoon/Evening/Night. Those phases and work-driven time marks have been removed from the playable experiment.
+
+The current model has only an explicit day boundary:
+
+- watered crops grow overnight when **End Day** is chosen;
+- Shipping Bin contents pay overnight when **End Day** is chosen;
+- the day counter increments;
+- all ordinary work and Tool changes are free of hidden time costs;
+- the General Store is always open, but Farmer must travel to Town to use it.
+
+This makes time's actual effects visible without pretending that the game already has strategic time management. No Weather, Season, story event, travel cost, NPC schedule or other time feature should be added until a real competing opportunity is defined. Area travel deliberately costs no time in this experiment.
+
+## Landmark Area access experiment
+
+The world is split into separate active Area tables:
+
+- **Home Farm** contains Farmer while present, both plots, Stone Well and Shipping Bin;
+- **Valley Town** contains the General Store;
+- the two Landmark cards live in the Hand, not on the board;
+- playing a Landmark card moves Farmer and their carried card to that Area;
+- there is no remote-table browsing state or carousel;
+- **End Day** is only available while Farmer is at Home Farm.
+
+This is spatial separation, not a time-cost system. `areaId` belongs to world cards, while Hand cards remain location-independent until played.
+
+## Action Point direction — not implemented yet
+
+The next time experiment should use a finite AP budget per day. This is a design direction only; the current runtime still has no AP counter or action costs.
+
+- equip/swap/return a Tool: 0 AP;
+- play a Landmark to travel: provisional 1 AP;
+- buy Seeds: 0 AP;
+- deposit Carrots into Shipping Bin: 0 AP;
+- one Sickle, Hoe, sow, water, refill or harvest interaction on a board target: provisional 1 AP;
+- dragging Farmer to a target is currently only card targeting, not a separate movement system and not an extra AP cost;
+- water a 3×3 plot is 1 AP at baseline, not 2;
+- AP is spent only after a successful Landmark/work interaction, never on selection, dragging, swapping, buying or depositing;
+- 10 AP was only a placeholder; 8 AP is the first candidate to playtest.
+
+Future Person cards may temporarily add AP, reduce the cost of an action family or modify the daily AP rules. This is intentionally uncommitted.
 
 ## Art status
 
-`STYLE.md` and `little-valley-cards-art-bible-v0.1.md` control active art work.
+`STYLE.md`, `little-valley-cards-art-bible-v0.1.md` and `.agents/skills/little-valley-cards-art/` control raster work.
 
-The existing plot, crop, well, market, watering and harvest images plus the 2026-09-19 Farmer, wild soil, seed, carrot and coin-purse images are runtime-approved for this prototype only. They do not establish canonical protagonist, NPC, location or crop identity.
+Hoe, Watering Can and Sickle use square transparent native-pixel item assets recorded under `art/style-studies/`.
 
-## Long-term goal under evaluation
+Six previously missing or ambiguous horizontal card images now have dedicated runtime art: Cleared Ground, Watered Plot, Watered Carrots, General Store, Home Farm Landmark and Valley Town Landmark. Each source, prompt, processed delivery and 320×200 review preview is recorded under `art/style-studies/`.
 
-The proposed full-run objective is to restore an abandoned farm and prepare it to survive its first winter. Short-term goals feed that arc through clearing land, building sustainable production and stocking supplies. This goal is not implemented yet; it should only be expanded after the physical work loop proves enjoyable.
+Shipping Bin art remains approved for the prototype with one caveat: a later revision should place it recognizably inside the protagonist's farm rather than a generic meadow.
+
+## Next checkpoint
+
+The user should hands-on playtest:
+
+- whether the bottom Hand improves board readability;
+- whether one-tap play/swap is faster than managing loose Tool cards;
+- whether Sickle → Cleared Ground → Hoe reads naturally with the dedicated state art;
+- whether hand-harvest directly into the Hand feels immediate enough;
+- whether the money HUD is legible and purchasing feels direct;
+- whether both water/sow orders read naturally;
+- whether overnight growth and payout make the day boundary understandable;
+- whether End Day still lacks a meaningful opportunity cost;
+- whether playing a Landmark feels more direct than carousel browsing;
+- whether the two Hand groups make portable objects and navigation cards immediately understandable;
+- whether each new image explains its card state at a glance.
+
+Do not operate the browser for playtesting unless the user explicitly asks. Do not commit or push without the user's request.
 
 ## Source of truth
 
-- `PROJECT-STATUS.md` describes the active direction.
-- `prototype/little-valley-cards/README.md` describes the current playable contract.
+- `PROJECT-STATUS.md` describes the current direction and experiment.
+- `prototype/little-valley-cards/README.md` describes the playable contract.
 - `STYLE.md` and `little-valley-cards-art-bible-v0.1.md` control art production.
 - `CONTEXT-RESTORE-PROMPT.md` is the handoff prompt for the next session.
 
-Earlier One Good Day prototypes and content were removed from the working tree after the project pivot. Their tracked history remains recoverable from Git commit `ebe2196`.
+Earlier One Good Day prototypes remain outside the active tree. Their history is recoverable from Git commit `ebe2196` and must not be restored accidentally.

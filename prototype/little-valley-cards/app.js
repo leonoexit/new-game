@@ -1,17 +1,23 @@
-import { CARD_DEFS, GAME } from "./data.js";
+import { AREAS, CARD_DEFS, GAME } from "./data.js";
 import {
-  advance,
+  buySeeds,
+  cardArea,
   cardLabel,
   carriedItem,
   createGame,
   currentHint,
   detachItem,
+  endDay,
+  farmerArea,
   findCard,
+  freeHands,
+  handItems,
   hydrateGame,
   moveCard,
+  playFromHand,
   resolveDrop,
+  returnToHand,
   tapDecision,
-  togglePause,
   validTargets,
 } from "./engine.js";
 
@@ -19,8 +25,6 @@ const root = document.querySelector("#game");
 let state = load();
 let dragging = null;
 let selectedCardId = null;
-let lastFrame = performance.now();
-let lastSavedSecond = -1;
 let toastTimer = null;
 
 function load() {
@@ -37,9 +41,28 @@ function save() {
 
 function detailFor(item) {
   if (item.typeId === "watered_carrots") {
-    return `${Math.max(1, Math.ceil((item.meta.growthRemainingMs ?? 0) / 1000))}s until mature`;
+    const days = item.meta.growthRemainingDays ?? GAME.cropGrowthDays;
+    return `${days} overnight growth ${days === 1 ? "step" : "steps"} until mature`;
+  }
+  if (item.typeId === "shipping_bin") {
+    const amount = item.meta.amount ?? 0;
+    return amount > 0 ? `${amount} carrots settle when the day ends.` : CARD_DEFS[item.typeId].description;
+  }
+  if (item.typeId === "watering_can") {
+    const charges = item.meta.charges ?? 0;
+    return charges > 0
+      ? `${charges} of ${GAME.wateringCanCapacity} water charges remain.`
+      : "Empty · carry it to the Stone Well to refill.";
   }
   return CARD_DEFS[item.typeId].description;
+}
+
+function badgeFor(item, isPerson, carrying, attached) {
+  if (carrying) return "Carrying";
+  if (isPerson) return "Ready";
+  if (attached) return "Carried";
+  if (item.typeId === "shipping_bin" && (item.meta.amount ?? 0) > 0) return "Queued";
+  return CARD_DEFS[item.typeId].badge;
 }
 
 function renderCard(item) {
@@ -47,82 +70,105 @@ function renderCard(item) {
   const isPerson = definition.kind === "Person";
   const attached = Boolean(item.meta.parentId);
   const carrying = isPerson ? carriedItem(state, item.id) : null;
-  const statusBadge = carrying ? "Carrying" : isPerson ? "Ready" : attached ? "Carried" : definition.badge;
+  const statusBadge = badgeFor(item, isPerson, carrying, attached);
   const parent = attached ? findCard(state, item.meta.parentId) : null;
   const selectionTargets = selectedCardId ? validTargets(state, selectedCardId) : [];
   const selected = selectedCardId === item.id;
   const tapTarget = selectionTargets.includes(item.id);
   const z = parent ? Math.round(parent.y) + 29 : Math.round(item.y) + (item.typeId === "farmer" ? 30 : 0);
   return `
-    <article class="world-card ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${attached ? "attached" : ""} ${selected ? "selected-source" : ""} ${tapTarget ? "tap-target" : ""}"
+    <article class="world-card ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${item.typeId === "general_store" ? "service-card" : ""} ${attached ? "attached" : ""} ${selected ? "selected-source" : ""} ${tapTarget ? "tap-target" : ""}"
       data-card-id="${item.id}" style="--x:${item.x}; --y:${item.y}px; --z:${z}" aria-label="${cardLabel(state, item)}" role="button" tabindex="0" aria-pressed="${selected}">
       <div class="card-kicker"><span class="kind-label">${isPerson ? `<i class="actor-glyph" aria-hidden="true"></i>` : ""}${definition.kind}</span>${statusBadge ? `<b>${statusBadge}</b>` : ""}</div>
-      <div class="card-art">
-        <img src="${definition.art}" alt="" draggable="false" />
-      </div>
+      <div class="card-art"><img src="${definition.art}" alt="" draggable="false" /></div>
       <strong>${cardLabel(state, item)}</strong>
       <p>${carrying ? `${CARD_DEFS[carrying.typeId].name} attached · drag the stack` : detailFor(item)}</p>
-      ${item.typeId === "watered_carrots" ? `<div class="progress-shell crop"><i class="crop-progress" data-card-progress="${item.id}"></i></div>` : ""}
+      ${item.typeId === "watered_carrots" ? `<div class="progress-shell crop"><i style="width:${100 * (1 - item.meta.growthRemainingDays / GAME.cropGrowthDays)}%"></i></div>` : ""}
+      ${item.typeId === "general_store" ? `<button class="card-action" data-buy-seeds ${state.coins < GAME.seedBundleCost ? "disabled" : ""}>Buy Seeds · ${GAME.seedBundleCost}</button>` : ""}
     </article>`;
 }
 
-function coins() {
-  return state.cards.find((item) => item.typeId === "coin_purse")?.meta.amount ?? 0;
+function handState(item) {
+  if (item.typeId === "watering_can") return `${item.meta.charges ?? 0}/${GAME.wateringCanCapacity}`;
+  if ((item.meta.amount ?? 1) > 1) return `×${item.meta.amount}`;
+  return "";
+}
+
+function renderHandCard(item) {
+  const definition = CARD_DEFS[item.typeId];
+  const landmark = definition.kind === "Landmark";
+  const active = landmark && item.meta.areaId === farmerArea(state);
+  return `<button class="hand-card ${landmark ? "hand-landmark" : "hand-item"} ${active ? "active-landmark" : ""}" data-hand-id="${item.id}" ${active ? "disabled" : ""} aria-label="${active ? `${definition.name}, current Area` : `Play ${cardLabel(state, item)}`}">
+    <img src="${definition.art}" alt="" /><span><small>${landmark ? "Landmark" : definition.kind}</small><strong>${definition.name}</strong></span>${active ? `<b>Here</b>` : handState(item) ? `<b>${handState(item)}</b>` : ""}
+  </button>`;
+}
+
+function renderHand() {
+  const items = handItems(state);
+  const farmer = state.cards.find((item) => item.typeId === "farmer");
+  const carried = farmer && carriedItem(state, farmer.id);
+  const order = { hoe: 0, watering_can: 1, sickle: 2, carrot_seeds: 3, carrots: 4 };
+  const portable = items
+    .filter((item) => CARD_DEFS[item.typeId].kind !== "Landmark")
+    .sort((a, b) => (order[a.typeId] ?? 99) - (order[b.typeId] ?? 99));
+  const landmarks = AREAS
+    .map((area) => items.find((item) => item.id === area.landmarkId))
+    .filter(Boolean);
+  return `
+    <section class="hand" id="hand" aria-label="Hand">
+      <header><div><span>Hand</span><small>Play cards onto the world</small></div><button id="free-hands" ${carried ? "" : "disabled"}>Free hands</button></header>
+      <div class="hand-scroll">
+        <div class="hand-group"><small>Items</small><div>${portable.length ? portable.map(renderHandCard).join("") : `<p>No item cards</p>`}</div></div>
+        <div class="hand-group landmarks"><small>Landmarks</small><div>${landmarks.map(renderHandCard).join("")}</div></div>
+      </div>
+    </section>`;
 }
 
 function render() {
-  const seconds = Math.ceil(state.remainingMs / 1000);
   const selected = selectedCardId ? findCard(state, selectedCardId) : null;
   if (selectedCardId && !selected) selectedCardId = null;
+  const activeAreaId = farmerArea(state);
+  const currentArea = AREAS.find((area) => area.id === activeAreaId) ?? AREAS[0];
   const guidance = selected
     ? `${cardLabel(state, selected)} selected · tap a glowing target or drag the card.`
     : currentHint(state);
+  const boardCards = state.cards.filter((item) => !item.meta.inHand && cardArea(state, item) === activeAreaId);
+  const atFarm = activeAreaId === "farm";
   root.innerHTML = `
     <section class="game-shell">
       <header class="hud">
-        <div class="brand"><strong>Little Valley</strong><span>physical board prototype</span></div>
-        <div class="dusk"><span>Dusk in <b id="time-label">${seconds}s</b></span><div><i id="day-progress"></i></div></div>
-        <button id="pause" class="icon-button" aria-label="${!state.started ? "Start time" : state.paused ? "Resume" : "Pause"}">${!state.started || state.paused ? "▶" : "Ⅱ"}</button>
+        <div class="brand"><strong>Little Valley</strong><span>physical world prototype</span></div>
+        <div class="money-unit" aria-label="${state.coins} coins"><i></i><span>${state.coins}</span><small>coins</small></div>
       </header>
 
-      <section class="goal-strip">
-        <span>Today's goal</span>
-        <strong>Sell two harvests</strong>
-        <b id="coin-goal">${coins()} / ${GAME.goalCoins} coins</b>
+      <section class="day-strip">
+        <div><small>Day</small><strong>${state.day}</strong></div>
+        <p>${atFarm ? "Watered crops grow and shipments pay overnight." : "Return to Home Farm to end the day."}</p>
+        <button id="end-day" ${atFarm ? "" : "disabled"}>End Day</button>
       </section>
 
       <section class="hint" id="hint"><span>✦</span><p>${guidance}</p></section>
 
+      <section class="area-ribbon"><small>Current Area</small><strong>${currentArea.name}</strong><span>Play another Landmark from your Hand to travel</span></section>
+
       <section class="board-wrap">
-        <div class="world-board" id="world-board" aria-label="Persistent card world">
-          <div class="zone meadow"><span>Upper field</span></div>
-          <div class="zone road"><span>Road to town</span></div>
-          <div class="board-note">Time starts on your first move · Holding or selecting a card pauses time</div>
-          ${state.cards.map(renderCard).join("")}
+        <div class="world-board area-${activeAreaId}" id="world-board" aria-label="${currentArea.name} card table">
+          ${activeAreaId === "farm"
+            ? `<div class="zone meadow"><span>Home fields</span></div><div class="zone road"><span>Farm lane</span></div>`
+            : `<div class="zone town-square"><span>Town square</span></div>`}
+          <div class="board-note">Play item cards from the Hand · drag carried cards back to the Hand</div>
+          ${boardCards.map(renderCard).join("")}
         </div>
       </section>
 
       <footer class="status-bar">
         <p id="message">${state.lastMessage}</p>
-        <button id="reset">Reset day</button>
+        <button id="reset">Reset farm</button>
       </footer>
+      ${renderHand()}
       <div class="toast" id="toast" role="status"></div>
-
-      ${state.phase !== "playing" ? `
-        <div class="result-layer">
-          <section class="result-card ${state.phase}">
-            <span class="result-mark">${state.phase === "won" ? "☀" : "☾"}</span>
-            <small>${state.phase === "won" ? "Two harvests" : "Dusk"}</small>
-            <h1>${state.phase === "won" ? "One pair of hands managed two plots." : "The market closed."}</h1>
-            <p>${state.phase === "won"
-              ? "You chose how one Farmer moved between two competing plots and brought both harvests to market."
-              : "The cards remain understandable, but the work needs a quicker route."}</p>
-            <button id="play-again">Try another day</button>
-          </section>
-        </div>` : ""}
     </section>`;
   bindEvents();
-  updateLive();
 }
 
 function showToast(message) {
@@ -134,6 +180,13 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.remove("show"), 1500);
 }
 
+function commitResult(result) {
+  state = result.state;
+  if (!result.ok) showToast(result.message);
+  save();
+  render();
+}
+
 function reset() {
   selectedCardId = null;
   state = createGame();
@@ -142,19 +195,36 @@ function reset() {
 }
 
 function bindEvents() {
-  document.querySelector("#pause")?.addEventListener("click", () => {
-    state = togglePause(state);
+  document.querySelector("#end-day")?.addEventListener("click", () => {
+    selectedCardId = null;
+    state = endDay(state);
     save();
     render();
   });
   document.querySelector("#reset")?.addEventListener("click", reset);
-  document.querySelector("#play-again")?.addEventListener("click", reset);
+  document.querySelector("#free-hands")?.addEventListener("click", () => {
+    selectedCardId = null;
+    commitResult(freeHands(state));
+  });
+  document.querySelector("[data-buy-seeds]")?.addEventListener("pointerdown", (event) => event.stopPropagation());
+  document.querySelector("[data-buy-seeds]")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    selectedCardId = null;
+    commitResult(buySeeds(state));
+  });
+  document.querySelectorAll("[data-hand-id]").forEach((element) => {
+    element.addEventListener("click", () => {
+      selectedCardId = null;
+      commitResult(playFromHand(state, element.dataset.handId));
+    });
+  });
   document.querySelectorAll("[data-card-id]").forEach((element) => {
     element.addEventListener("pointerdown", startDrag);
     element.addEventListener("keydown", handleCardKey);
   });
   document.querySelector("#world-board")?.addEventListener("pointerdown", (event) => {
-    if (!event.target.closest("[data-card-id]") && selectedCardId) {
+    if (event.target.closest("[data-card-id], button")) return;
+    if (selectedCardId) {
       selectedCardId = null;
       render();
     }
@@ -183,11 +253,12 @@ function handleCardTap(cardId) {
 }
 
 function startDrag(event) {
-  if (state.phase !== "playing") return;
+  if (state.phase !== "playing" || event.target.closest("button")) return;
   const element = event.currentTarget;
   const cardId = element.dataset.cardId;
   event.preventDefault();
   const item = findCard(state, cardId);
+  if (!item || item.meta.fixed || cardArea(state, item) !== farmerArea(state)) return;
   const wasAttached = Boolean(item.meta.parentId);
   const cardRect = element.getBoundingClientRect();
   const companionId = wasAttached ? null : carriedItem(state, cardId)?.id ?? null;
@@ -213,6 +284,12 @@ function startDrag(event) {
   element.addEventListener("pointermove", dragMove);
   element.addEventListener("pointerup", endDrag);
   element.addEventListener("pointercancel", endDrag);
+}
+
+function pointInside(element, clientX, clientY) {
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
 }
 
 function dragMove(event) {
@@ -247,6 +324,8 @@ function dragMove(event) {
   }
 
   document.querySelectorAll(".drop-hot").forEach((target) => target.classList.remove("drop-hot"));
+  const hand = document.querySelector("#hand");
+  if (pointInside(hand, event.clientX, event.clientY)) hand.classList.add("drop-hot");
   const hot = targetAtPoint(event.clientX, event.clientY);
   if (hot) document.querySelector(`[data-card-id="${hot}"]`)?.classList.add("drop-hot");
 }
@@ -283,12 +362,17 @@ function endDrag(event) {
     return;
   }
   const targetId = targetAtPoint(event.clientX, event.clientY);
+  const overHand = pointInside(document.querySelector("#hand"), event.clientX, event.clientY);
   const boardRect = document.querySelector("#world-board").getBoundingClientRect();
   const x = 100 * (event.clientX - boardRect.left - active.offsetX) / boardRect.width;
   const y = event.clientY - boardRect.top - active.offsetY;
   state = moveCard(state, active.id, x, y);
 
-  if (targetId) {
+  if (overHand) {
+    const result = returnToHand(state, active.id);
+    state = result.state;
+    if (!result.ok) showToast(result.message);
+  } else if (targetId) {
     const result = resolveDrop(state, active.id, targetId);
     state = result.state;
     if (!result.ok) showToast(result.message);
@@ -303,41 +387,4 @@ function endDrag(event) {
   render();
 }
 
-function updateLive() {
-  const seconds = Math.ceil(state.remainingMs / 1000);
-  const timeLabel = document.querySelector("#time-label");
-  const dayProgress = document.querySelector("#day-progress");
-  if (timeLabel) timeLabel.textContent = `${seconds}s`;
-  if (dayProgress) dayProgress.style.width = `${100 * state.remainingMs / GAME.dayLengthMs}%`;
-
-  state.cards.filter((item) => item.typeId === "watered_carrots").forEach((item) => {
-    const progress = document.querySelector(`[data-card-progress="${item.id}"]`);
-    if (progress) progress.style.width = `${100 * (1 - item.meta.growthRemainingMs / 7_000)}%`;
-  });
-}
-
-function frame(now) {
-  const delta = Math.min(150, now - lastFrame);
-  lastFrame = now;
-  if (!dragging && !selectedCardId) {
-    const previousPhase = state.phase;
-    const result = advance(state, delta);
-    state = result.state;
-    if (result.events.length || previousPhase !== state.phase) {
-      save();
-      render();
-      result.events.forEach(showToast);
-    } else {
-      updateLive();
-    }
-    const second = Math.ceil(state.remainingMs / 1000);
-    if (second !== lastSavedSecond) {
-      lastSavedSecond = second;
-      save();
-    }
-  }
-  requestAnimationFrame(frame);
-}
-
 render();
-requestAnimationFrame(frame);

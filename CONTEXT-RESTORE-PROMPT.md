@@ -1,139 +1,167 @@
 # Prompt Khôi Phục Ngữ Cảnh — Little Valley Cards
 
-Hãy tiếp tục dự án game **Little Valley Cards** tại:
+Tiếp tục dự án tại `/Volumes/LeNguyen02SSD/Programming/new-game`.
 
-`/Volumes/LeNguyen02SSD/Programming/new-game`
-
-Trước khi sửa code, hãy đọc đầy đủ:
+Trước khi sửa code, đọc đầy đủ:
 
 - `PROJECT-STATUS.md`
 - `prototype/little-valley-cards/README.md`
-- `STYLE.md` và `little-valley-cards-art-bible-v0.1.md` nếu làm art
-- `.agents/skills/little-valley-cards-art/SKILL.md` nếu tạo hoặc chỉnh raster artwork
+- `CONTEXT-RESTORE-PROMPT.md`
+- `STYLE.md`, `little-valley-cards-art-bible-v0.1.md` và `.agents/skills/little-valley-cards-art/SKILL.md` nếu làm raster art
 
-Không khôi phục các prototype hoặc tài liệu cũ đã bị loại. Không commit, push hoặc hoàn tác những thay đổi Git hiện có nếu tôi chưa yêu cầu. Pivot Little Valley Cards và Actor Stack v0.2 đã được push lên `origin/main` tại commit `3230a68`; thay đổi two-plot sau commit này có thể vẫn chưa commit.
+Không khôi phục One Good Day. Không discard thay đổi hiện có. Không commit/push nếu user chưa yêu cầu. Không tự điều khiển browser; user là hands-on tester.
 
-## 1. Tóm tắt cốt lõi
+## Git checkpoint
 
-Little Valley Cards hiện là game quản lý nông trại mobile màn dọc, trong đó **các lá bài chính là những vật thể vật lý tồn tại trong thế giới**. Không còn hand, draw pile, play-three, Action Points, fixed target row, inventory panel hay UI quan hệ NPC.
-
-Người chơi kéo card trên một persistent board. Khi Person card được thả vào tương tác hợp lệ, công việc chủ động resolve ngay; stack biến đổi hoặc sản phẩm mới bật ra ngay trên bàn. Chỉ crop growth và đồng hồ ngày còn dùng thời gian. Không gian và sự lộn xộn của bàn phải trở thành lịch sử trực quan của trang trại.
-
-Prototype hiện tại tại `prototype/little-valley-cards/` đã có vòng chơi hai plot, một Farmer:
+Commit cuối đã push là:
 
 ```text
-Farmer + Wild Soil x2 -> Empty Plot x2
-Farmer + Carrot Seeds -> Farmer [carrying Seeds]
-Farmer [carrying Seeds] + Empty Plot -> Carrot Plot
-Farmer + Stone Well -> Farmer [carrying Water]
-Farmer [carrying Water] + Carrot Plot -> timed growth
-Farmer + Mature Carrots -> Carrots x3
-Carrots + Roadside Market -> Coin Purse x6 -> win
+c99babe — Add tap interaction alongside drag controls
 ```
 
-Các tính năng đã chạy:
+Các experiment World-time, Shipping Bin, Tool system, Hand và day-only settlement đều đang là WIP chưa commit và phải được bảo toàn.
 
-- kéo/thả card tự do trên board dọc;
-- target hợp lệ phát sáng;
-- active work resolve ngay; crop growth vẫn có thời gian;
-- card Water, Carrots và Coin Purse được spawn vật lý;
-- đồng hồ hai phút chỉ bắt đầu sau nước đi hợp lệ đầu tiên và tạm dừng khi đang giữ card;
-- local save/reset;
-- hai plot cạnh tranh nhưng chỉ có một Farmer, tạo lựa chọn thứ tự lao động đầu tiên;
-- Actor Stack cho Seeds và Water: attach, kéo compound stack, detach, target validation và item lifecycle;
-- mọi runtime card đều có generated pixel artwork;
-- Person card có visual language riêng: frame teal, icon người và badge `READY`/`CARRYING`;
+## Core đã được kiểm chứng
 
-User đã playtest ngày 2026-09-19 và kết luận gameplay **thực sự vui**, tự nguyện loop việc trồng cây nhiều lần dù content còn rất ít. Đây là validation quan trọng: không quay lại các hướng card-hand/pair-matching cũ.
+Little Valley Cards là solo farm-management game màn dọc, nơi card là vật thể tồn tại liên tục. Không có draw pile, play limit, Action Points công khai hoặc fixed target row. Vùng dưới màn hình là Hand của persistent cards, không phải random-card system.
 
-Art direction đã được đóng gói trong project skill `little-valley-cards-art`: native pixel art, high-key fresh palette, colored outlines; artwork action/world là horizontal 8:5, item/portrait là square; card frame, icon, progress và targeting phải do code/UI vẽ. Asset runtime hiện tại chỉ được duyệt cho prototype, chưa phải canonical identity.
+Tap và drag dùng cùng engine. Selection chỉ là UI state tạm thời. Core loop hai plot/một Farmer đã được user playtest tích cực; phải bảo vệ tốc độ, tactile feel, output trực tiếp trên board, quyền tự sắp xếp và palette handheld tươi sáng.
 
-## 2. Mạch tư duy hiện tại
+## Hand
 
-Actor Stack v0.2 đã được implement và kiểm chứng. Actor thực sự mang item:
+Backpack UI đã bị loại bỏ. Hand là khu chứa card vật thể cầm nắm được và Landmark card:
+
+- Tool, Seeds và Carrots là portable;
+- Hoe, Watering Can và Sickle bắt đầu trong Hand;
+- tap/play item trong Hand để equip;
+- nếu Farmer đang mang item khác, item cũ quay lại Hand;
+- kéo portable card vào Hand để cất;
+- Farmer có một carrying slot;
+- Tool, Seeds và Carrots được sort gần nhau; Landmark cards nằm group riêng;
+- card trong Hand vẫn là chính object đó, không bị clone hoặc chuyển thành dữ liệu inventory trừu tượng.
+
+## Tool system
+
+- Sickle cắt cỏ từ Wild Soil và tạo Cleared Ground.
+- Hoe xới Cleared Ground thành Empty Plot.
+- Watering Can có đúng một card và hai charges.
+- Stone Well refill chính card Watering Can, không spawn Water/container.
+- Mature Carrots được Farmer hái bằng tay không; Farmer phải free hands.
+- Harvested Carrots đi thẳng vào Hand.
+- Tool không bị consume và toàn world luôn có đúng một card của mỗi Tool.
+
+Hand có nút **Free hands** để trả vật đang mang trước khi harvest.
+
+## Water và Seeds không còn thứ tự bắt buộc
+
+Sau khi clear, cả hai flow đều hợp lệ:
 
 ```text
-Farmer + Stone Well
-        -> Farmer [carrying Water]
-
-Farmer [carrying Water] + Carrot Plot
-        -> work timer
-        -> Farmer + Watered Plot
+Empty Plot -> water -> Watered Plot -> sow -> Watered Carrot Plot
+Empty Plot -> sow -> thirsty Carrot Plot -> water -> Watered Carrot Plot
 ```
 
-Tương tự:
+Cleared Ground, Watered Plot và Watered Carrots đều có art riêng để state tự giải thích bằng hình.
+
+## Money và economy
+
+Coin Purse card đã bị loại khỏi runtime. Money là `state.coins` và hiển thị trên HUD.
+
+General Store nằm ở Valley Town và có nút Buy Seeds giá hai coins. Farmer phải ở Town mới mua được. Seeds mua xong đi thẳng vào Hand. Sáu coins là milestone không khóa simulation. Automated economy tiếp tục qua lần mua thứ hai và đạt mười coins.
+
+## Landmark và Area
+
+- Home Farm và Valley Town là hai card table riêng, được access bằng Landmark card trong Hand.
+- Chơi Valley Town Landmark để chuyển Farmer và carried card sang Town.
+- Chơi Home Farm Landmark để quay lại Farm.
+- Landmark vẫn tồn tại trong Hand sau khi chơi.
+- Không còn carousel hoặc remote-table browsing state.
+- Store thuộc Town; plots, Well và Shipping Bin thuộc Farm.
+- End Day chỉ khả dụng khi Farmer ở Home Farm.
+- Travel chưa tốn time trong experiment hiện tại.
+
+## Action Point direction — chưa triển khai
+
+Game sẽ có một lượng **Action Point (AP) hữu hạn mỗi ngày** để người chơi phải tính toán hành động tiếp theo. Đây là hướng thiết kế đã thống nhất, nhưng runtime hiện tại vẫn chưa có AP; không được mô tả như feature đã hoàn thành.
+
+Nguyên tắc hiện tại:
+
+- equip/play Tool từ Hand: **0 AP**;
+- đổi Tool hoặc trả card về Hand: **0 AP**;
+- chơi Landmark để di chuyển Area: **1 AP**;
+- mua Seeds: **0 AP**;
+- bỏ Carrots vào Shipping Bin: **0 AP**;
+- thực hiện Sickle, Hoe, sow, water, refill hoặc harvest lên target: baseline **1 AP**;
+- kéo Farmer tới target hiện chỉ là cách chọn/resolve card interaction, chưa phải movement system và không có AP riêng;
+- water một plot card đại diện vùng 3×3 vẫn chỉ **1 AP**, không dùng 2 AP ở baseline;
+- AP chỉ trừ khi Landmark/work interaction resolve thành công, không trừ khi select, drag, swap, buy hoặc deposit;
+- hết AP có thể tự kết thúc ngày; End Day thủ công vẫn được giữ.
+
+Con số **10 AP** trước đó chỉ là placeholder, không có ý nghĩa đặc biệt. **8 AP** có thể là baseline thử nghiệm đầu tiên: Landmark Town → mua Seeds → Landmark Farm → Sickle → Hoe → sow → water một plot tốn khoảng 6 AP, còn lại một ít dư địa nhưng chưa đủ thoải mái cho hai plot.
+
+AP tạo ra quyết định trong ngày. Day boundary vẫn cần để reset AP, làm crop growth và thanh toán Shipping Bin, nhưng chưa cần khôi phục Morning/Afternoon/Evening/Night.
+
+Ý tưởng mở bỏ ngỏ: các Person card trong tương lai có thể tăng AP tạm thời, giảm AP tiêu hao của một nhóm action, hoặc thay đổi luật AP trong một ngày. Chưa chốt ontology, giá trị hay cách kích hoạt.
+
+## Time sau playtest
+
+Morning/Afternoon/Evening/Night và work marks đã bị tháo khỏi playable UI vì user không cảm được tác động và chúng không tạo decision.
+
+Time hiện chỉ có day boundary trung thực:
+
+- End Day làm watered crops trưởng thành qua đêm;
+- End Day thanh toán Shipping Bin;
+- day counter tăng;
+- work, movement, equip và purchase không tiêu hidden time;
+- General Store luôn mở nhưng chỉ dùng được khi Farmer ở Town.
+
+Lưu ý: câu trên chỉ nói về time system hiện tại. Khi AP được triển khai, travel và purchase sẽ có AP cost hiển thị rõ ràng.
+
+Đây chưa phải strategic time management. Không thêm Weather, Season, story, NPC schedule hoặc travel cost trước khi có một trade-off thật sự.
+
+## Art mới
+
+Cleared Ground, Watered Plot, Watered Carrots, General Store, Home Farm Landmark và Valley Town Landmark có image riêng. Source, prompt, processed output và review preview nằm trong các thư mục tương ứng dưới `art/style-studies/`; runtime files nằm trong `prototype/little-valley-cards/assets/`.
+
+## Việc cần làm ngay khi quay lại
+
+1. Chạy test, syntax checks và `git diff --check`.
+2. Hands-on test Hand ở đáy: item cards gần nhau, Landmark group riêng, không còn Backpack/Carousel.
+3. Test chuỗi Landmark → Store → Landmark → Tool → sow/water → End Day → harvest → Shipping Bin.
+4. Kiểm tra Landmark active có trạng thái `Here`, vẫn nằm trong Hand, và carried card đi cùng Farmer.
+5. Kiểm tra drag về Hand, swap item, responsive mobile và Hand không che target.
+6. Giữ server `http://127.0.0.1:8080/` chạy; không commit/push.
+
+## Những điều còn bỏ ngỏ
+
+- Hand đáy màn hình có tạo cảm giác cầm bài tốt hơn Backpack không?
+- Landmark chỉ là navigation card hay sau này có thêm tác dụng riêng?
+- Có cần giới hạn số card trong Hand không?
+- Khi nào travel mới cần tốn time hoặc tạo trade-off?
+- AP baseline nên là 8, 10 hay một con số khác sau hands-on playtest?
+- Person cards sẽ cộng AP, giảm cost, hay tạo modifier theo action?
+- AP có reset cứng mỗi ngày hay có thể giữ lại một phần?
+
+## Verification
+
+```sh
+cd /Volumes/LeNguyen02SSD/Programming/new-game
+npm --prefix prototype/little-valley-cards test
+git diff --check
+git status --short
+```
+
+Expected:
 
 ```text
-Farmer + Seeds -> Farmer [carrying Seeds]
-Farmer [carrying Seeds] + Empty Plot -> Planted Plot
+Hand/Landmark/day-cycle smoke test passed: Landmark cards travel between Farm and Town, item cards stay grouped in Hand, Tools work, hand-harvest resolves, and the repeat economy remains valid.
 ```
 
-Ngữ pháp hiện tại:
+Sau khi checks pass, mở server chỉ trên localhost:
 
-- Actor là chủ thể.
-- Item/tool là thứ actor đang cầm hoặc trang bị.
-- Land/building là mục tiêu.
-- Progress là động từ đang diễn ra.
-- Một actor stack di chuyển như một đơn vị; sau công việc item có thể bị tiêu thụ, biến đổi hoặc được trả lại.
+```sh
+cd prototype/little-valley-cards
+python3 -m http.server 8080 --bind 127.0.0.1
+```
 
-Actor luôn là động từ chủ động: kéo Farmer vào loose Seeds/Water để nhặt; công việc tại Well tự attach Water ngay khi hoàn tất. Kéo Farmer di chuyển cả stack; kéo phần item lộ ra sẽ detach. Seeds tiêu hao từng đơn vị và phần còn lại tiếp tục được mang. Water bị consume sau khi tưới. Busy state áp dụng cho cả actor và carried item.
-
-Không contextual-gate việc nhặt item hoặc dùng Well chỉ để ép đúng recipe order. Farmer có thể chuẩn bị resource trước khi có destination. Highlight diễn đạt khả năng vật lý, không chỉ ra nước đi tối ưu; hint mô tả trạng thái thế giới thay vì ra lệnh kéo card cụ thể.
-
-Interaction v0.3 hỗ trợ song song tap và drag trên cùng engine rule. Tap source rồi tap target phát sáng tương đương drag source vào target; tap lại source hoặc nền board để cancel. Selection là UI state tạm thời, không save, hỗ trợ Enter/Space và tạm dừng đồng hồ ngày giống như đang giữ card. Không được biến selection thành universal pair-recipe UI.
-
-Board hiện đã có hai Wild Soil, hai seed units và một Farmer. Mục tiêu là bán hai harvest lấy sáu coin. Đây là phép thử đầu tiên về labour pressure mà không thêm crop, NPC hoặc economy mới.
-
-NPC về sau cũng là Person card có chức năng lao động, không phải dialogue tree. Công trình và input quyết định việc gì xảy ra; nhân vật cung cấp lao động và modifier riêng. Lore/backstory là khám phá tùy chọn thông qua phản ứng cơ học với item/location, không có friendship bar hay màn hình quan hệ bắt buộc.
-
-Mục tiêu dài hạn đang được cân nhắc: khôi phục trang trại bỏ hoang và chuẩn bị đủ để sống qua mùa đông đầu tiên. Chưa implement và chưa khóa chính thức.
-
-## 3. Hành động tiếp theo
-
-1. Chạy baseline:
-
-   ```sh
-   cd /Volumes/LeNguyen02SSD/Programming/new-game/prototype/little-valley-cards
-   npm test
-   ```
-
-2. Kiểm tra `git status` và bảo toàn toàn bộ intentional deletions/uncommitted work hiện có.
-
-3. Yêu cầu user playtest trực tiếp loop hai plot, một Farmer. Quan sát:
-
-   - việc chọn thứ tự clear/sow/water/harvest có tạo quyết định thật hay chỉ thêm thao tác;
-   - board có còn đọc được khi hai crop ở các trạng thái khác nhau;
-   - nhịp hai phút và mục tiêu sáu coin có quá dễ hoặc quá gấp;
-   - carrying/detach còn tự nhiên khi chuyển liên tục giữa hai plot.
-
-4. Chạy browser prototype tại `http://127.0.0.1:8080/`, kiểm tra console và mobile portrait. Server có thể không còn chạy ở phiên mới; nếu cần hãy khởi động lại bằng:
-
-   ```sh
-   python3 -m http.server 8080
-   ```
-
-5. Nếu two-plot loop vẫn vui và rõ ràng, thử Person card thứ hai như Mira với đúng một specialization cơ học. Chưa thêm crop, lore hoặc economy lớn trong cùng experiment.
-
-## 4. Những điều còn bỏ ngỏ
-
-- Two-plot loop có tạo labour pressure thú vị hay chỉ nhân đôi thao tác?
-- Water nên là `Water`, `Bucket of Water`, hay cần vòng đời `Empty Bucket -> Filled Bucket -> Empty Bucket`?
-- Nhân vật thứ hai nên tạo parallelism tới mức nào trước khi làm game quá dễ?
-- Khi Farmer thu hoạch, Carrots nên spawn rời trên bàn hay trở thành item đang được Farmer mang?
-- Mobile drag/scroll có glitch nào trên thiết bị thật? Hiện mới kiểm tra trong in-app browser desktop; board background hỗ trợ vertical scroll còn card giữ pointer drag.
-- Hai phút có phải nhịp ngày đúng hay chỉ là thông số test?
-- Full game cần fail state cứng, hậu quả mềm khi thiếu winter supplies, hay cả hai?
-- Khi nào Mira xuất hiện, cô ấy ở lại theo điều kiện gì, và specialization đầu tiên là gì?
-
-## Cleanup đã thực hiện
-
-Ngày 2026-09-19 đã loại khỏi active tree:
-
-- GDD cũ và paper prototype `A Day in Three Cards`;
-- contact sheet của universal pair-card demo;
-- Sow action study cũ;
-- runtime `sow.png` không còn được code tham chiếu.
-
-Chúng được chuyển vào macOS Trash tại `little-valley-cards-cleanup-2026-09-19`, không xoá vĩnh viễn. Những asset Water/Harvest và các source/processed/record khác được giữ vì runtime hiện tại vẫn sử dụng chúng. One Good Day cũ vẫn có thể phục hồi từ Git commit `ebe2196`.
-
-Hãy tiếp tục từ **two plots + one Farmer**. Playtest labour pressure trước; nếu đạt, experiment kế tiếp là Person card thứ hai với một specialization rõ ràng.
+Gửi user `http://127.0.0.1:8080/` và chờ hands-on feedback.

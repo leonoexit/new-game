@@ -1,9 +1,17 @@
 export const GAME = Object.freeze({
-  version: 6,
-  dayLengthMs: 120_000,
+  version: 12,
   goalCoins: 6,
-  storageKey: "little-valley-physical-board-v6",
+  cropGrowthDays: 1,
+  seedBundleCost: 2,
+  seedBundleAmount: 2,
+  wateringCanCapacity: 2,
+  storageKey: "little-valley-physical-board-v12",
 });
+
+export const AREAS = Object.freeze([
+  Object.freeze({ id: "farm", name: "Home Farm", landmarkId: "farm-landmark" }),
+  Object.freeze({ id: "town", name: "Valley Town", landmarkId: "town-landmark" }),
+]);
 
 const art = (filename) => `./assets/${filename}`;
 
@@ -11,7 +19,7 @@ export const CARD_DEFS = Object.freeze({
   farmer: {
     name: "Farmer",
     kind: "Person",
-    description: "Does the work. One task at a time.",
+    description: "Does the work, carries one item, and harvests mature crops by hand.",
     art: art("farmer.png"),
     artShape: "square",
   },
@@ -21,11 +29,25 @@ export const CARD_DEFS = Object.freeze({
     description: "Grass and stones cover workable earth.",
     art: art("wild-soil.png"),
   },
+  cleared_ground: {
+    name: "Cleared Ground",
+    kind: "Land",
+    description: "The grass is cut. The firm soil still needs the Hoe.",
+    art: art("cleared-ground.png"),
+    badge: "Untilled",
+  },
   empty_plot: {
     name: "Empty Plot",
     kind: "Land",
     description: "Cleared soil waiting for seed.",
     art: art("empty-plot.png"),
+  },
+  watered_empty_plot: {
+    name: "Watered Plot",
+    kind: "Land",
+    description: "Cleared and watered soil waiting for seed.",
+    art: art("watered-plot.png"),
+    badge: "Watered",
   },
   planted_carrots: {
     name: "Carrot Plot",
@@ -37,7 +59,7 @@ export const CARD_DEFS = Object.freeze({
     name: "Carrot Plot",
     kind: "Crop",
     description: "Watered. Growing with time.",
-    art: art("young-carrots.png"),
+    art: art("watered-carrots.png"),
     badge: "Growing",
   },
   ready_carrots: {
@@ -53,18 +75,37 @@ export const CARD_DEFS = Object.freeze({
     description: "A Person can pick these up for an Empty Plot.",
     art: art("carrot-seeds.png"),
     artShape: "square",
+    portable: true,
+  },
+  hoe: {
+    name: "Hoe",
+    kind: "Tool",
+    description: "A persistent Tool for tilling Cleared Ground into a Plot.",
+    art: art("hoe.png"),
+    artShape: "square",
+    portable: true,
+  },
+  watering_can: {
+    name: "Watering Can",
+    kind: "Tool",
+    description: "Refill it at the Stone Well, then water thirsty crops.",
+    art: art("watering-can.png"),
+    artShape: "square",
+    portable: true,
+  },
+  sickle: {
+    name: "Sickle",
+    kind: "Tool",
+    description: "A persistent Tool for cutting grass from Wild Soil.",
+    art: art("sickle.png"),
+    artShape: "square",
+    portable: true,
   },
   well: {
     name: "Stone Well",
-    kind: "Place",
-    description: "A worker can draw Water here.",
+    kind: "Well",
+    description: "Refills a carried Watering Can. It never creates a container.",
     art: art("well.png"),
-  },
-  water: {
-    name: "Water",
-    kind: "Resource",
-    description: "Carry it to a thirsty crop.",
-    art: art("water.png"),
   },
   carrots: {
     name: "Carrots",
@@ -72,18 +113,30 @@ export const CARD_DEFS = Object.freeze({
     description: "Fresh produce for the market.",
     art: art("carrots.png"),
     artShape: "square",
+    portable: true,
   },
-  roadside_market: {
-    name: "Roadside Market",
-    kind: "Place",
-    description: "Bring produce here to sell it.",
-    art: art("roadside-market.png"),
+  general_store: {
+    name: "General Store",
+    kind: "Store",
+    description: "Buy two Carrot Seeds for two coins. Purchases enter the Hand.",
+    art: art("general-store.png"),
   },
-  coin_purse: {
-    name: "Coin Purse",
-    kind: "Resource",
-    description: "The farm's earnings.",
-    art: art("coin-purse.png"),
-    artShape: "square",
+  shipping_bin: {
+    name: "Shipping Bin",
+    kind: "Farm",
+    description: "Ship produce now. Collect the earnings at day's end.",
+    art: art("shipping-bin.png"),
+  },
+  home_farm_landmark: {
+    name: "Home Farm",
+    kind: "Landmark",
+    description: "The farm's persistent landmark and travel destination.",
+    art: art("home-farm-landmark.png"),
+  },
+  valley_town_landmark: {
+    name: "Valley Town",
+    kind: "Landmark",
+    description: "The town's persistent landmark and travel destination.",
+    art: art("valley-town-landmark.png"),
   },
 });
