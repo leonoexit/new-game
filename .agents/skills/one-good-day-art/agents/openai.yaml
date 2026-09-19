@@ -1,4 +1,0 @@
-interface:
-  display_name: "One Good Day Art"
-  short_description: "Develop and produce consistent art for One Good Day"
-  default_prompt: "Use the One Good Day art workflow to explore, generate, or review this asset."
