@@ -1,11 +1,63 @@
 export const GAME = Object.freeze({
-  version: 12,
+  version: 18,
   goalCoins: 6,
-  cropGrowthDays: 1,
-  seedBundleCost: 2,
-  seedBundleAmount: 2,
+  cropGrowthDays: 2,
+  actionPointsPerDay: 8,
+  seasonName: "Spring",
+  seasonLengthDays: 7,
+  weatherByDay: Object.freeze(["sunny", "sunny", "sunny", "sunny", "sunny", "rainy", "sunny"]),
+  farmFieldCapacity: 2,
   wateringCanCapacity: 2,
-  storageKey: "little-valley-physical-board-v12",
+  storageKey: "little-valley-physical-board-v18",
+  legacyStorageKeys: Object.freeze(["little-valley-physical-board-v17", "little-valley-physical-board-v16"]),
+});
+
+export function weatherForDay(day) {
+  return GAME.weatherByDay[(Math.max(1, day) - 1) % GAME.weatherByDay.length];
+}
+
+export const CROPS = Object.freeze({
+  carrot: Object.freeze({
+    id: "carrot",
+    name: "Carrots",
+    seedTypeId: "carrot_seeds",
+    plantedTypeId: "planted_carrots",
+    wateredTypeId: "watered_carrots",
+    readyTypeId: "ready_carrots",
+    produceTypeId: "carrots",
+    growthDays: 2,
+    regrowDays: 0,
+    harvestAmount: 3,
+    seedBundleCost: 1,
+    seedBundleAmount: 1,
+  }),
+  green_bean: Object.freeze({
+    id: "green_bean",
+    name: "Green Beans",
+    seedTypeId: "green_bean_seeds",
+    plantedTypeId: "planted_green_beans",
+    wateredTypeId: "watered_green_beans",
+    readyTypeId: "ready_green_beans",
+    produceTypeId: "green_beans",
+    growthDays: 3,
+    regrowDays: 2,
+    harvestAmount: 4,
+    seedBundleCost: 2,
+    seedBundleAmount: 1,
+  }),
+});
+
+export const ACTION_COSTS = Object.freeze({
+  travel: 1,
+  clear_grass: 1,
+  till_soil: 1,
+  refill_watering_can: 1,
+  water_plot: 1,
+  sow: 1,
+  sow_watered: 1,
+  water_crop: 1,
+  harvest: 1,
+  remove_crop: 1,
 });
 
 export const AREAS = Object.freeze([
@@ -54,13 +106,18 @@ export const CARD_DEFS = Object.freeze({
     kind: "Crop",
     description: "Planted, but still thirsty.",
     art: art("young-carrots.png"),
+    badge: "Thirsty",
+    cropId: "carrot",
+    cropState: "thirsty",
   },
   watered_carrots: {
     name: "Carrot Plot",
     kind: "Crop",
     description: "Watered. Growing with time.",
     art: art("watered-carrots.png"),
-    badge: "Growing",
+    badge: "Watered",
+    cropId: "carrot",
+    cropState: "watered",
   },
   ready_carrots: {
     name: "Mature Carrots",
@@ -68,6 +125,8 @@ export const CARD_DEFS = Object.freeze({
     description: "Ready to pull from the soil.",
     art: art("harvest.png"),
     badge: "Ready",
+    cropId: "carrot",
+    cropState: "ready",
   },
   carrot_seeds: {
     name: "Carrot Seeds",
@@ -76,6 +135,47 @@ export const CARD_DEFS = Object.freeze({
     art: art("carrot-seeds.png"),
     artShape: "square",
     portable: true,
+    stackable: true,
+    cropId: "carrot",
+    cropState: "seeds",
+  },
+  planted_green_beans: {
+    name: "Green Bean Plot",
+    kind: "Crop",
+    description: "Young vines are climbing, but the soil is thirsty.",
+    art: art("young-green-beans.png"),
+    badge: "Thirsty",
+    cropId: "green_bean",
+    cropState: "thirsty",
+  },
+  watered_green_beans: {
+    name: "Green Bean Plot",
+    kind: "Crop",
+    description: "Watered vines grow toward their next harvest.",
+    art: art("watered-green-beans.png"),
+    badge: "Watered",
+    cropId: "green_bean",
+    cropState: "watered",
+  },
+  ready_green_beans: {
+    name: "Mature Green Beans",
+    kind: "Crop",
+    description: "Ready to pick. The vines remain for another harvest.",
+    art: art("mature-green-beans.png"),
+    badge: "Ready",
+    cropId: "green_bean",
+    cropState: "ready",
+  },
+  green_bean_seeds: {
+    name: "Green Bean Seeds",
+    kind: "Item",
+    description: "One seed starts a slower crop that regrows after harvest.",
+    art: art("green-bean-seeds.png"),
+    artShape: "square",
+    portable: true,
+    stackable: true,
+    cropId: "green_bean",
+    cropState: "seeds",
   },
   hoe: {
     name: "Hoe",
@@ -90,13 +190,14 @@ export const CARD_DEFS = Object.freeze({
     kind: "Tool",
     description: "Refill it at the Stone Well, then water thirsty crops.",
     art: art("watering-can.png"),
+    filledArt: art("watering-can-filled.png"),
     artShape: "square",
     portable: true,
   },
   sickle: {
     name: "Sickle",
     kind: "Tool",
-    description: "A persistent Tool for cutting grass from Wild Soil.",
+    description: "Cuts grass from Wild Soil or removes a planted crop, returning its Land to an Empty Plot.",
     art: art("sickle.png"),
     artShape: "square",
     portable: true,
@@ -114,11 +215,25 @@ export const CARD_DEFS = Object.freeze({
     art: art("carrots.png"),
     artShape: "square",
     portable: true,
+    stackable: true,
+    cropId: "carrot",
+    cropState: "produce",
+  },
+  green_beans: {
+    name: "Green Beans",
+    kind: "Produce",
+    description: "Fresh pods from a crop that keeps growing after harvest.",
+    art: art("green-beans.png"),
+    artShape: "square",
+    portable: true,
+    stackable: true,
+    cropId: "green_bean",
+    cropState: "produce",
   },
   general_store: {
     name: "General Store",
     kind: "Store",
-    description: "Buy two Carrot Seeds for two coins. Purchases enter the Hand.",
+    description: "Choose quick Carrots or slower regrowing Green Beans. Seeds enter the Hand.",
     art: art("general-store.png"),
   },
   shipping_bin: {
@@ -140,3 +255,8 @@ export const CARD_DEFS = Object.freeze({
     art: art("valley-town-landmark.png"),
   },
 });
+
+export function cropForType(typeId) {
+  const cropId = CARD_DEFS[typeId]?.cropId;
+  return cropId ? CROPS[cropId] ?? null : null;
+}
