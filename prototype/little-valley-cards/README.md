@@ -24,7 +24,7 @@ Hoe, Watering Can and Sickle begin in the bottom Hand instead of occupying the b
 - Tap/play an item card to equip it. If Farmer is carrying another portable card, the two cards swap.
 - Hold an item card in the Hand to inspect it without playing it. Inspection enlarges the physical card and places its full description directly below.
 - Drag a loose portable card into the Hand to store it. A carried card returns to the Hand when dropped away from a valid target.
-- Tools, Seeds and harvested Carrots are portable.
+- Tools, all Seed families and ordinary/Choice Produce are portable.
 - Farmer has one carrying slot.
 - **Return item** returns Farmer's carried card before a hand-only action.
 - Item cards are sorted together in the Hand; Landmark cards form a separate group.
@@ -35,7 +35,7 @@ Hoe, Watering Can and Sickle begin in the bottom Hand instead of occupying the b
 
 Money is `state.coins` and appears in the top HUD. There is no Coin Purse card.
 
-The General Store sells one Seed unit per purchase: one coin buys one Carrot Seed; two coins buy either a slower regrowing Green Bean Seed or a Potato Seed. Repeated purchases increase the matching Seed card's `×N` quantity. Farmer must be in Town to buy. Six coins remain a non-blocking milestone within the seven-day run.
+The General Store sells one Seed unit per purchase. Carrot, Potato and Radish Seeds cost one coin; Green Bean Seeds cost two; Cauliflower Seeds cost three. Repeated purchases increase the matching Seed card's `×N` quantity. Farmer must be in Town to buy. Six coins remain a non-blocking milestone within the seven-day run.
 
 The Store is opened through the same physical interaction grammar as farm work: select Farmer, then select the General Store (or drag Farmer onto it). A tray of the currently available Seed cards then appears. Buying from those cards is free and does not spend AP; travelling to Town still costs 1 AP.
 
@@ -90,13 +90,27 @@ Carrots require two watered nights. At End Day, each watered crop advances one s
 
 ## Green Bean crop lifecycle
 
-Green Beans create the first strategic crop contrast. One Seed costs two coins, needs three watered nights for its first harvest and produces four Beans. A Carrot Seed costs one coin, needs two watered nights and is consumed after one harvest. Harvesting Green Beans keeps the vines on the same Land card; two more watered nights produce the next harvest. Missed water still pauses rather than killing the crop.
+Green Beans create the first strategic crop contrast. One Seed costs two coins, needs three watered nights for its first harvest and produces three Beans. A Carrot Seed costs one coin, needs two watered nights and is consumed after one harvest. Harvesting Green Beans keeps the vines on the same Land card; two more watered nights produce the next harvest. Missed water still pauses rather than killing the crop.
 
 ## Potato crop lifecycle
 
-One Potato Seed costs two coins and needs two watered nights. Mature Potatoes cannot be harvested by hand: Farmer must carry the Hoe. The first 1 AP dig yields two Potatoes and transforms the same Land into visible Potato Mounds. A second 1 AP dig yields two more, consolidates the Produce card to `×4`, and returns that Land to an Empty Plot. The deterministic `2 + 2` reveal gives Potatoes a digging rhythm without RNG or reload incentives.
+One Potato Seed costs one coin and needs two watered nights. Mature Potatoes cannot be harvested by hand: Farmer must carry the Hoe. The first 1 AP dig yields two Potatoes and transforms the same Land into visible Potato Mounds. A second 1 AP dig yields two more, consolidates the Produce card to `×4`, and returns that Land to an Empty Plot. The deterministic `2 + 2` reveal gives Potatoes a digging rhythm without RNG or reload incentives.
 
 Rain waters thirsty Potatoes normally. The Sickle can remove growing or mature Potatoes without Produce. A partially dug Potato Mound persists across Spring Weeks and is completed with the Hoe; the Weekly Journal counts the crop once after the second dig.
+
+## Cauliflower crop lifecycle
+
+Cauliflower is the slow Land commitment. One Seed costs three coins, needs four watered nights and produces nine Cauliflowers in one hand harvest. It clears the Plot afterward. The large payoff is paired with low flexibility: on a three-Land farm, that field is unavailable for most of a Spring Week.
+
+## Radish crop lifecycle
+
+Radish adds a harvest-timing decision. After one watered night, the Land becomes a visible Baby Radish harvest. Farmer may pull two immediately and free the Plot, or deliberately water the Baby Radishes for two more nights to reach a full harvest of five. Rain does not silently advance the Baby state, so continuing the crop is always an explicit commitment.
+
+## Shared Quality and care memories
+
+Quality is deterministic and never depends on perfect watering or a random roll. With free hands, drag a thirsty, watered or Baby crop onto Farmer—or use the equivalent tap path—to **Tend** it for 1 AP. The crop card becomes visibly Tended. Its next harvest transforms into a separate gold **Choice** Produce card.
+
+Choice Produce consolidates separately from ordinary Produce and ships at the same coin rate. Its lasting value is the farm's memory book: the first Choice harvest and the first Choice harvest of every crop become persistent care memories. Green Bean care resets each regrow cycle; Potato care survives the first dig and covers both batches. Removing a crop erases its pending care and produces nothing. The outcome is persisted and deterministic, so reloading cannot improve it.
 
 ## Day-only time experiment
 
@@ -113,7 +127,7 @@ There is no hidden clock. Work and Area travel spend visible AP; Tool changes an
 
 - Spring lasts seven playable days; this is a test horizon, not the canonical season length.
 - The final End Day still advances watered crops and pays the Shipping Bin, then stops day progression.
-- A Weekly Journal reports shipment coins, harvest actions and crops still growing.
+- A Weekly Journal recalls first harvests, crop discoveries, first Choice harvests and completed-week milestones. Shipment and living-crop notes remain prose rather than a score table.
 - **Continue farm** begins the next Spring Week while preserving Land, crops, Tools, supplies and coins.
 - **Reset farm** remains a separate full restart. Week boundaries never wither or remove crops.
 
@@ -127,12 +141,13 @@ AP is deducted only after an interaction succeeds. End Day in any Area restores 
 
 ```text
 drag Valley Town Landmark onto the table -> Town board
-choose Carrot or Green Bean Seeds -> Seeds enter Hand
+compare five Seed behavior cards -> Seeds enter Hand
 drag Home Farm Landmark onto the table -> Farm board
 play Sickle -> cut the remaining Wild Soil
 play Hoe -> till Cleared Ground into the second Plot
 play Watering Can -> refill at Well
 water then sow, or sow then water
+optionally drag a growing crop onto Farmer -> Tend for a Choice harvest
 End Day -> watered crops advance and become thirsty
 water growing crops again
 End Day -> crops mature
@@ -161,7 +176,7 @@ Farm and Town use distinct generated native-pixel table backgrounds rather than 
 
 ## Intentional scope
 
-- One Farmer, one of each Tool, three finite persistent fields, Carrots, regrowing Green Beans, two-dig Potatoes, one Well, one General Store, one Shipping Bin and two Areas with one Landmark each.
+- One Farmer, one of each Tool, exactly three finite persistent fields, five Spring crops, one Well, one General Store, one Shipping Bin and two Areas with one Landmark each.
 - No draw pile, dialogue, relationship UI, Weather, multiple seasons, NPC or location graph. Spring Week is a deliberately narrow crop-balance slice.
 - Hand is the presentation layer for persistent physical cards, not a second abstract item database.
 - Tool is a concrete behavior family; the rest of the ontology remains open.
@@ -173,4 +188,12 @@ Farm and Town use distinct generated native-pixel table backgrounds rather than 
 npm test
 ```
 
-The smoke test covers Hand membership, Landmark play, Store access by Area, End Day in multiple Areas, Sickle clearing, Hoe tilling, free-hand harvest directly into the Hand, Watering Can charges, both sow/water orders, overnight crop growth, shipment payout, the six-coin milestone and a repeated economy reaching ten coins.
+The automated suite covers Hand membership, Landmark play, five-crop Store access, both sow/water orders for every crop, rain, removal, each harvest behavior, shared Quality, shipping, memory Journal, week persistence, exactly three Land, legacy save migrations and deterministic multi-week balance policies.
+
+Run the reviewable balance model with:
+
+```sh
+npm run balance
+```
+
+Its assumptions and latest deterministic results are stored in `BALANCE-REPORT.md`; the behavior contract is `SPRING-FARMING-V1-DESIGN.md`.

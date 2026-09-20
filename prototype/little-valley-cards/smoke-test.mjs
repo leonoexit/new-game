@@ -20,6 +20,7 @@ import {
   interactionSourceId,
   playFromHand,
   resolveDrop,
+  shipmentTotals,
   continueFarm,
   returnToHand,
   tapDecision,
@@ -71,9 +72,9 @@ assert.equal(findCard(migratedThreeLandState, "soil3").typeId, "wild_soil", "v18
 assert.equal(migratedThreeLandState.cards.filter((item) => item.meta.isLand).length, 3);
 
 let game = createGame();
-assert.equal(game.version, 20);
+assert.equal(game.version, 21);
 assert.equal(game.day, 1);
-assert.equal(game.coins, 2);
+assert.equal(game.coins, 3);
 assert.equal(game.actionPoints, 8);
 assert.equal(GAME.actionPointsPerDay, 8);
 assert.equal(GAME.seasonName, "Spring");
@@ -119,7 +120,7 @@ assert.deepEqual(tapDecision(game, "farmer", "hoe"), {
 
 let purchase = buySeeds(game);
 assert.equal(purchase.ok, false, "Seeds cannot be bought remotely from Home Farm");
-assert.equal(game.coins, 2);
+assert.equal(game.coins, 3);
 assert.equal(purchase.state.actionPoints, 8, "failed actions do not spend AP");
 assert.equal(dropAction(game, "farmer", "store"), null, "cross-Area card interactions are invalid");
 
@@ -210,11 +211,11 @@ assert.equal(farmerArea(townEndDay), "farm");
 purchase = buySeeds(game);
 assert.equal(purchase.ok, true);
 game = purchase.state;
-assert.equal(game.coins, 1, "one coin buys exactly one Carrot Seed");
+assert.equal(game.coins, 2, "one coin buys exactly one Carrot Seed");
 purchase = buySeeds(game);
 assert.equal(purchase.ok, true);
 game = purchase.state;
-assert.equal(game.coins, 0);
+assert.equal(game.coins, 1);
 assert.equal(game.actionPoints, 7, "buying Seeds is free");
 let seeds = cardsOfType(game, "carrot_seeds");
 assert.equal(seeds.length, 1, "repeat purchases consolidate into one Seed card");
@@ -302,7 +303,7 @@ assert.equal(game.actionPoints, 8);
 assert.equal(findCard(game, "soil").typeId, "planted_carrots", "watered crops dry after growing overnight");
 assert.equal(findCard(game, "soil2").typeId, "planted_carrots");
 assert.equal(findCard(game, "soil").meta.growthRemainingDays, 1);
-assert.equal(game.coins, 0, "ending a growth day does not invent income");
+assert.equal(game.coins, 1, "ending a growth day does not invent income");
 
 game = resolveDrop(game, "farmer", "well").state;
 game = resolveDrop(game, "farmer", "soil").state;
@@ -338,17 +339,17 @@ game = equip(game, harvests[0].id);
 assert.equal(carriedItem(game, "farmer").typeId, "carrots");
 game = resolveDrop(game, "farmer", "shipping").state;
 assert.equal(carriedItem(game, "farmer"), null);
-assert.equal(findCard(game, "shipping").meta.amount, 6);
-assert.equal(game.coins, 0, "Shipping Bin pays only overnight");
+assert.deepEqual(shipmentTotals(game), { amount: 6, value: 6 });
+assert.equal(game.coins, 1, "Shipping Bin pays only overnight");
 assert.equal(game.actionPoints, 6, "depositing produce is free");
 
 game = endDay(game);
 assert.equal(game.day, 6);
 assert.equal(game.actionPoints, 8);
-assert.equal(game.coins, 6);
+assert.equal(game.coins, 7);
 assert.equal(game.phase, "playing");
 assert.equal(game.milestones.firstSixCoins, true);
-assert.equal(findCard(game, "shipping").meta.amount, 0);
+assert.deepEqual(shipmentTotals(game), { amount: 0, value: 0 });
 
 assert.equal(game.seasonStats.coinsEarned, 6, "the season tracks shipment income");
 assert.equal(game.seasonStats.harvestCount, 2, "the season tracks harvest actions");
@@ -361,11 +362,11 @@ findCard(boundaryGame, "soil").typeId = "ready_carrots";
 findCard(boundaryGame, "soil").meta = { areaId: "farm", isLand: true, cropId: "carrot" };
 findCard(boundaryGame, "soil2").typeId = "watered_green_beans";
 findCard(boundaryGame, "soil2").meta = { areaId: "farm", isLand: true, cropId: "green_bean", growthRemainingDays: 1, growthTotalDays: 3 };
-findCard(boundaryGame, "shipping").meta.amount = 3;
+findCard(boundaryGame, "shipping").meta.shipments = [{ cropId: "carrot", quality: null, amount: 3, unitPrice: 1 }];
 boundaryGame = endDay(boundaryGame);
 assert.equal(boundaryGame.day, 7, "the final night ends Spring instead of creating day 8");
 assert.equal(boundaryGame.phase, "weekly_journal");
-assert.equal(boundaryGame.coins, 5, "the final shipment settles before the summary");
+assert.equal(boundaryGame.coins, 6, "the final shipment settles before the summary");
 assert.equal(boundaryGame.seasonSummary.coinsEarned, 3);
 assert.equal(boundaryGame.seasonSummary.harvestCount, 0);
 assert.equal(boundaryGame.seasonSummary.cropsGrowing, 2, "the journal counts crops continuing on the farm");
@@ -380,7 +381,7 @@ assert.equal(boundaryGame.week, 2);
 assert.equal(boundaryGame.day, 1);
 assert.equal(boundaryGame.actionPoints, 8);
 assert.equal(boundaryGame.seasonSummary, null);
-assert.deepEqual(boundaryGame.seasonStats, { coinsEarned: 0, harvestCount: 0 });
+assert.deepEqual(boundaryGame.seasonStats, { coinsEarned: 0, harvestCount: 0, memories: [] });
 assert.equal(findCard(boundaryGame, "soil").typeId, "ready_carrots", "Continue Farm preserves mature crops");
 assert.equal(findCard(boundaryGame, "soil2").typeId, "ready_green_beans", "Continue Farm preserves regrowing crops");
 assert.equal(boundaryGame.cards.filter((item) => item.meta.isLand).length, 3, "weekly journals preserve Land identity");
@@ -397,7 +398,7 @@ beanGame = playFromHand(beanGame, "town-landmark").state;
 const beanPurchase = buySeeds(beanGame, "green_bean");
 assert.equal(beanPurchase.ok, true, "Green Bean Seeds can be chosen at the General Store");
 beanGame = beanPurchase.state;
-assert.equal(beanGame.coins, 0);
+assert.equal(beanGame.coins, 1);
 const beanSeeds = oneCard(beanGame, "green_bean_seeds");
 assert.equal(beanSeeds.meta.amount, 1, "a Green Bean purchase creates exactly one Seed card");
 beanGame = playFromHand(beanGame, "farm-landmark").state;
@@ -424,7 +425,7 @@ beanGame = resolveDrop(beanGame, "farmer", "soil").state;
 assert.equal(findCard(beanGame, "soil").typeId, "planted_green_beans", "harvesting Green Beans preserves the vines");
 assert.equal(findCard(beanGame, "soil").meta.growthRemainingDays, 2, "Green Beans begin a two-night regrow cycle");
 const beanProduce = oneCard(beanGame, "green_beans");
-assert.equal(beanProduce.meta.amount, 4);
+assert.equal(beanProduce.meta.amount, 3);
 beanGame = equip(beanGame, "watering-can");
 beanGame = resolveDrop(beanGame, "farmer", "soil").state;
 beanGame = endDay(beanGame);
@@ -438,7 +439,7 @@ potatoGame = playFromHand(potatoGame, "town-landmark").state;
 const potatoPurchase = buySeeds(potatoGame, "potato");
 assert.equal(potatoPurchase.ok, true, "Potato Seeds can be chosen at the General Store");
 potatoGame = potatoPurchase.state;
-assert.equal(potatoGame.coins, 0);
+assert.equal(potatoGame.coins, 2);
 const potatoSeeds = oneCard(potatoGame, "potato_seeds");
 potatoGame = playFromHand(potatoGame, "farm-landmark").state;
 potatoGame = equip(potatoGame, potatoSeeds.id);
@@ -466,7 +467,7 @@ assert.equal(oneCard(potatoGame, "potatoes").meta.amount, 4, "the second dig con
 assert.equal(potatoGame.seasonStats.harvestCount, 1, "the completed two-dig crop counts as one harvest");
 potatoGame = equip(potatoGame, oneCard(potatoGame, "potatoes").id);
 potatoGame = resolveDrop(potatoGame, "farmer", "shipping").state;
-assert.equal(findCard(potatoGame, "shipping").meta.amount, 4, "all four Potatoes can be shipped from one quantity card");
+assert.deepEqual(shipmentTotals(potatoGame), { amount: 4, value: 4 }, "all four Potatoes can be shipped from one quantity card");
 
 let rainyPotatoes = createGame();
 rainyPotatoes.day = 5;
@@ -522,8 +523,8 @@ assert.match(app, /renderHand/);
 assert.match(app, /renderInspection/);
 assert.match(app, /startHandInspect/);
 assert.match(app, /Tap to play · hold to inspect/);
-assert.match(app, /First harvest after/);
-assert.match(app, /Vines remain and regrow/);
+assert.match(app, /First harvest:/);
+assert.match(app, /afterHarvestLabel/);
 assert.match(app, /inspection-fields/);
 assert.match(app, /inspection-card/);
 assert.match(app, /inspection-backdrop/);

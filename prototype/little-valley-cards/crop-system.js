@@ -1,23 +1,36 @@
 import { CARD_DEFS, GAME, cropForType } from "./data.js";
+import {
+  harvestQuality,
+  produceTypeForHarvest,
+  recordCropDiscovery,
+  recordHarvestMemory,
+} from "./quality-system.js";
 
 const landMeta = (item) => ({ areaId: item.meta.areaId, isLand: true });
+const removableCropStates = new Set(["thirsty", "watered", "early_ready", "ready"]);
+
+export function harvestStageFor(crop, cropState) {
+  return crop?.harvestStages?.find((stage) => stage.state === cropState) ?? null;
+}
 
 export function cropActionFor(carried, target) {
-  if (carried?.typeId === "sickle" && ["thirsty", "watered", "ready"].includes(CARD_DEFS[target.typeId]?.cropState)) return "remove_crop";
+  const targetState = CARD_DEFS[target?.typeId]?.cropState;
+  if (carried?.typeId === "sickle" && removableCropStates.has(targetState)) return "remove_crop";
   if (CARD_DEFS[carried?.typeId]?.cropState === "seeds" && target.typeId === "empty_plot") return "sow";
   if (CARD_DEFS[carried?.typeId]?.cropState === "seeds" && target.typeId === "watered_empty_plot") return "sow_watered";
   if (carried?.typeId === "watering_can" && (carried.meta.charges ?? 0) > 0 && target.typeId === "empty_plot") return "water_plot";
   if (carried?.typeId === "watering_can" && (carried.meta.charges ?? 0) > 0
-    && CARD_DEFS[target.typeId]?.cropState === "thirsty") return "water_crop";
-  const targetCrop = cropForType(target.typeId);
-  if (targetCrop?.harvestTool && carried?.typeId === targetCrop.harvestTool
-    && ["ready", "partial_harvest"].includes(CARD_DEFS[target.typeId]?.cropState)) return "dig_potatoes";
-  if (!carried && CARD_DEFS[target.typeId]?.cropState === "ready" && !targetCrop?.harvestTool) return "harvest";
-  return null;
+    && ["thirsty", "early_ready"].includes(targetState)) return "water_crop";
+
+  const targetCrop = cropForType(target?.typeId);
+  const harvestStage = harvestStageFor(targetCrop, targetState);
+  if (!harvestStage) return null;
+  if (targetCrop.harvestTool) return carried?.typeId === targetCrop.harvestTool ? "harvest_crop" : null;
+  return carried ? null : "harvest_crop";
 }
 
 export function applyCropJob(state, job, helpers, events) {
-  const { findCard, removeCard, spawn } = helpers;
+  const { findCard, removeCard } = helpers;
   const worker = findCard(state, job.workerId);
   const target = findCard(state, job.targetId);
   if (!worker || !target) return false;
@@ -47,6 +60,7 @@ export function applyCropJob(state, job, helpers, events) {
     else seeds.meta.parentId = worker.id;
     target.typeId = job.kind === "sow_watered" ? crop.wateredTypeId : crop.plantedTypeId;
     target.meta = { ...meta, cropId: crop.id, growthRemainingDays: crop.growthDays, growthTotalDays: crop.growthDays };
+    recordCropDiscovery(state, crop.id, events);
     events.push(job.kind === "sow_watered"
       ? `${crop.name} Seeds settle into watered soil. They need ${crop.growthDays} watered nights.`
       : `${crop.name} settle into the plot, ready for water.`);
@@ -58,46 +72,56 @@ export function applyCropJob(state, job, helpers, events) {
     const remaining = spendWaterCharge(findCard(state, job.sourceId));
     const growthRemainingDays = target.meta.growthRemainingDays ?? crop.growthDays;
     target.typeId = crop.wateredTypeId;
-    target.meta = { ...meta, cropId: crop.id, growthRemainingDays, growthTotalDays: target.meta.growthTotalDays ?? crop.growthDays };
+    target.meta = {
+      ...target.meta,
+      ...meta,
+      cropId: crop.id,
+      growthRemainingDays,
+      growthTotalDays: target.meta.growthTotalDays ?? crop.growthDays,
+    };
     events.push(`The crop is watered. The Watering Can has ${remaining} charge${remaining === 1 ? "" : "s"} left.`);
     return true;
   }
-  if (job.kind === "harvest") {
-    const crop = cropForType(target.typeId);
-    if (!crop) return false;
-    if (crop.regrowDays > 0) {
-      target.typeId = crop.plantedTypeId;
-      target.meta = { ...meta, cropId: crop.id, growthRemainingDays: crop.regrowDays, growthTotalDays: crop.regrowDays };
-    } else {
-      target.typeId = "empty_plot";
-      target.meta = meta;
-    }
-    spawn(state, crop.produceTypeId, target.x + 28, target.y + 54, { amount: crop.harvestAmount, inHand: true });
-    state.seasonStats.harvestCount += 1;
-    const regrowMessage = crop.regrowDays > 0 ? ` The vines remain and can regrow in ${crop.regrowDays} watered nights.` : "";
-    events.push(`Farmer harvests ${crop.harvestAmount} ${crop.name} by hand and adds them to the Hand.${regrowMessage}`);
-    return true;
-  }
-  if (job.kind === "dig_potatoes") {
-    const crop = cropForType(target.typeId);
-    if (!crop?.partialTypeId || !crop.harvestSteps) return false;
-    const firstDig = target.typeId === crop.readyTypeId;
-    const amount = crop.harvestSteps[firstDig ? 0 : 1];
-    if (firstDig) {
-      target.typeId = crop.partialTypeId;
-      target.meta = { ...meta, cropId: crop.id };
-    } else {
-      target.typeId = "empty_plot";
-      target.meta = meta;
-      state.seasonStats.harvestCount += 1;
-    }
-    spawn(state, crop.produceTypeId, target.x + 28, target.y + 54, { amount, inHand: true });
-    events.push(firstDig
-      ? `Farmer digs up ${amount} ${crop.name} with the Hoe. Four mounds remain for a second dig.`
-      : `Farmer digs up ${amount} more ${crop.name}. The Land returns to an Empty Plot.`);
-    return true;
-  }
+  if (job.kind === "harvest_crop") return applyHarvest(state, target, helpers, events);
   return false;
+}
+
+function applyHarvest(state, target, helpers, events) {
+  const crop = cropForType(target.typeId);
+  const cropState = CARD_DEFS[target.typeId]?.cropState;
+  const stage = harvestStageFor(crop, cropState);
+  if (!crop || !stage) return false;
+  const quality = harvestQuality(target);
+  const produceTypeId = produceTypeForHarvest(crop, target);
+  const meta = landMeta(target);
+
+  helpers.spawn(state, produceTypeId, target.x + 28, target.y + 54, { amount: stage.amount, inHand: true });
+  recordHarvestMemory(state, crop.id, quality, events);
+
+  if (stage.next === "regrow") {
+    target.typeId = crop.plantedTypeId;
+    target.meta = { ...meta, cropId: crop.id, growthRemainingDays: crop.regrowDays, growthTotalDays: crop.regrowDays };
+  } else if (stage.next === "partial") {
+    target.typeId = crop.partialTypeId;
+    target.meta = { ...target.meta, ...meta, cropId: crop.id };
+  } else {
+    target.typeId = "empty_plot";
+    target.meta = meta;
+  }
+
+  if (stage.complete) state.seasonStats.harvestCount += 1;
+  const qualityLabel = quality === "choice" ? " Choice" : "";
+  if (stage.next === "partial") {
+    events.push(`Farmer digs up ${stage.amount}${qualityLabel} ${crop.name} with the Hoe. Closed mounds remain for a second dig.`);
+  } else if (crop.harvestTool) {
+    events.push(`Farmer digs up ${stage.amount} more${qualityLabel} ${crop.name}. The Land returns to an Empty Plot.`);
+  } else if (stage.next === "regrow") {
+    events.push(`Farmer harvests ${stage.amount}${qualityLabel} ${crop.name}. The vines remain and can regrow in ${crop.regrowDays} watered nights.`);
+  } else {
+    const timing = stage.label ? `${stage.label} ` : "";
+    events.push(`Farmer harvests ${stage.amount} ${timing}${qualityLabel} ${crop.name} by hand. The Land returns to an Empty Plot.`);
+  }
+  return true;
 }
 
 export function advanceGrowingCrops(state, events) {
@@ -116,6 +140,9 @@ export function advanceGrowingCrops(state, events) {
       delete item.meta.growthRemainingDays;
       delete item.meta.growthTotalDays;
       events.push(`${crop.name} grew overnight and are ready to harvest.`);
+    } else if (crop.earlyTypeId && item.meta.growthRemainingDays === crop.earlyReadyRemainingDays) {
+      item.typeId = crop.earlyTypeId;
+      events.push(`${crop.name} reached a baby harvest. Harvest now or water deliberately to keep growing.`);
     } else {
       item.typeId = crop.plantedTypeId;
       const nights = item.meta.growthRemainingDays;

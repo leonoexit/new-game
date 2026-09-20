@@ -85,12 +85,13 @@ button { color: inherit; font: inherit; }
 }
 .season-summary small { color: #71804f; font-size: 8px; font-weight: 1000; letter-spacing: .12em; text-transform: uppercase; }
 .season-summary h2 { margin: 6px 0 14px; font-size: 23px; }
-.season-summary dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 0; }
-.season-summary dl div { padding: 9px 4px; border-radius: 9px; background: #dce79a; }
-.season-summary dt { font-size: 7px; font-weight: 900; text-transform: uppercase; }
-.season-summary dd { margin: 3px 0 0; font-size: 22px; font-weight: 1000; }
 .season-summary p { margin: 13px 0; font-size: 10px; line-height: 1.35; }
 .season-summary button { min-height: 36px; margin: 3px; padding: 0 12px; border: 2px solid #40533d; border-radius: 8px; background: #efd36c; font-size: 9px; font-weight: 1000; }
+.journal-memories { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; text-align: left; }
+.journal-memories li { padding: 9px 10px; border: 2px solid #738650; border-radius: 9px; background: #e5eca9; }
+.journal-memories small { display: block; margin-bottom: 3px; font-size: 6px; }
+.journal-memories strong { font-size: 10px; line-height: 1.25; }
+.quiet-week { padding: 10px; border-radius: 9px; background: #e5eca9; }
 .ap-unit {
   min-width: 54px;
   display: grid;
@@ -184,6 +185,8 @@ button { color: inherit; font: inherit; }
 .hand-card small { display: block; color: #7b765f; font-size: 5px; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
 .hand-card strong { display: block; overflow: hidden; font-size: 8px; font-weight: 1000; line-height: 1.05; white-space: nowrap; text-overflow: ellipsis; }
 .hand-card b { position: absolute; right: 3px; top: 2px; padding: 2px 4px; border-radius: 99px; color: #fffbe2; background: #4e7555; font-size: 5px; }
+.hand-card.quality-choice { border-color: #8b5b24; background: #fff0a8; box-shadow: 0 3px 0 #6f451d; }
+.hand-card.quality-choice img { background: #f1dc76; }
 .hand-landmark { flex-basis: 119px; border-color: #6f512c; background: #f7df98; box-shadow: 0 3px 0 #493820; touch-action: none; user-select: none; }
 .hand-landmark img { width: 42px; object-fit: cover; border: 1px solid #6f512c; background: #c6c08e; }
 .hand-landmark.active-landmark { filter: saturate(.72); }
@@ -362,6 +365,12 @@ button { color: inherit; font: inherit; }
   cursor: default;
 }
 .world-card.landmark-card .card-art { border-color: #75512d; }
+.world-card.quality-choice, .inspection-card.quality-choice {
+  border-color: #95601f;
+  background: #fff0a8;
+  box-shadow: 0 5px 0 #6f451d, 0 9px 15px rgba(77, 52, 21, .26);
+}
+.world-card.tended-crop, .inspection-card.tended-crop { border-color: #4f7d63; background: #eef1aa; }
 .world-card.service-closed .card-art { filter: saturate(.62) brightness(.92); }
 .world-card.service-closed .card-kicker b { background: #77725e; }
 .person-card .card-kicker { color: #225c62; }
@@ -505,7 +514,7 @@ button { color: inherit; font: inherit; }
 .store-tray > header small { color: #7c6945; font-size: 7px; font-weight: 1000; letter-spacing: .12em; text-transform: uppercase; }
 .store-tray h2 { margin: 2px 0 0; font-size: 17px; }
 .store-tray > header button { min-height: 28px; padding: 0 9px; border: 2px solid #5f4528; border-radius: 99px; background: #efd36c; font-size: 8px; font-weight: 1000; }
-.store-seed-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.store-seed-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .store-seed-card { min-width: 0; padding: 7px; border: 2px solid #40533d; border-radius: 11px; background: #fff8d9; box-shadow: 0 4px 0 #354435; }
 .store-seed-card > small { color: #71805c; font-size: 6px; font-weight: 1000; letter-spacing: .1em; text-transform: uppercase; }
 .store-seed-card > img { width: 100%; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; border: 2px solid #455744; border-radius: 7px; background: #d9e6a3; }

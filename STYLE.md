@@ -31,4 +31,4 @@ Avoid photorealism, painterly brushwork, smooth airbrush gradients, pixel filter
 
 ## Current status
 
-The rendering language is retained. The current physical-board prototype uses runtime-approved art for Farmer, wild soil, empty plot, carrot growth, well, water, harvest, roadside market, carrot seed, harvested carrots and coin purse. These assets validate prototype slots only and do not yet define canonical crop, location, NPC or protagonist identity.
+The rendering language is retained. The physical-board prototype now has runtime-approved complete crop families for Carrot, Green Bean, Potato, Cauliflower and Radish, plus Farmer, Tools, soil states, Well, Store, Shipping Bin, Landmarks and Area backgrounds. Cauliflower and Radish production records include source, processed delivery, logical-size preview, final prompt and delegated review decision under `art/style-studies/`. These assets validate prototype slots; they do not define canonical NPC or protagonist identity.

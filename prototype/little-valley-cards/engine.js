@@ -1,5 +1,6 @@
 import { ACTION_COSTS, AREAS, CARD_DEFS, CROPS, GAME, cropForType, weatherForDay } from "./data.js";
 import { advanceGrowingCrops, applyCropJob, applyRainToFarm, cropActionFor } from "./crop-system.js";
+import { canTendCrop, ensureFarmMemory, recordMilestoneMemory, tendCrop } from "./quality-system.js";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -18,9 +19,10 @@ export function createGame() {
     weather: weatherForDay(1),
     actionPoints: GAME.actionPointsPerDay,
     nextId: 1,
-    coins: 2,
-    seasonStats: { coinsEarned: 0, harvestCount: 0 },
+    coins: 3,
+    seasonStats: { coinsEarned: 0, harvestCount: 0, memories: [] },
     seasonSummary: null,
+    memoryBook: { discoveries: [], firstHarvest: null, firstQuality: null, choiceCrops: [], milestones: [] },
     cards: [
       card("farmer", "farmer", 4, 38, { areaId: "farm" }),
       card("farm-landmark", "home_farm_landmark", 67, 30, { areaId: "farm", fixed: true }),
@@ -33,7 +35,7 @@ export function createGame() {
       card("watering-can", "watering_can", 0, 0, { charges: 0, inHand: true }),
       card("sickle", "sickle", 0, 0, { inHand: true }),
       card("store", "general_store", 35, 160, { areaId: "town" }),
-      card("shipping", "shipping_bin", 67, 350, { amount: 0, areaId: "farm" }),
+      card("shipping", "shipping_bin", 67, 350, { shipments: [], areaId: "farm" }),
     ],
     milestones: { firstSixCoins: false },
     lastMessage: `Day 1 begins with ${GAME.actionPointsPerDay} AP. One Plot is ready; two patches are still wild.`,
@@ -41,7 +43,7 @@ export function createGame() {
 }
 
 export function hydrateGame(raw) {
-  if (!raw || ![16, 17, 18, 19, GAME.version].includes(raw.version) || !Array.isArray(raw.cards)) return createGame();
+  if (!raw || ![16, 17, 18, 19, 20, GAME.version].includes(raw.version) || !Array.isArray(raw.cards)) return createGame();
   const state = clone(raw);
   state.version = GAME.version;
   if (!Number.isFinite(state.day)) state.day = 1;
@@ -51,8 +53,10 @@ export function hydrateGame(raw) {
   if (!Number.isFinite(state.actionPoints)) state.actionPoints = GAME.actionPointsPerDay;
   state.actionPoints = clamp(state.actionPoints, 0, GAME.actionPointsPerDay);
   state.milestones ??= { firstSixCoins: state.coins >= GAME.goalCoins };
-  state.seasonStats ??= { coinsEarned: 0, harvestCount: 0 };
+  state.seasonStats ??= { coinsEarned: 0, harvestCount: 0, memories: [] };
+  state.seasonStats.memories = Array.isArray(state.seasonStats.memories) ? state.seasonStats.memories : [];
   state.seasonSummary ??= null;
+  ensureFarmMemory(state);
   const hadOldSeasonBoundary = ["season_summary", "season_cleanup"].includes(state.phase)
     || state.cards.some((item) => item.typeId === "crop_remains");
   if (hadOldSeasonBoundary) {
@@ -66,11 +70,20 @@ export function hydrateGame(raw) {
     state.day = 1;
     state.weather = weatherForDay(1);
     state.actionPoints = GAME.actionPointsPerDay;
-    state.seasonStats = { coinsEarned: 0, harvestCount: 0 };
+    state.seasonStats = { coinsEarned: 0, harvestCount: 0, memories: [] };
     state.seasonSummary = null;
   }
   if (!state.cards.some((item) => item.id === "soil3")) {
     state.cards.push(card("soil3", "wild_soil", 35, 310, { areaId: "farm", isLand: true }));
+  }
+  const shippingBin = state.cards.find((item) => item.typeId === "shipping_bin");
+  if (shippingBin) {
+    shippingBin.meta.shipments = Array.isArray(shippingBin.meta.shipments) ? shippingBin.meta.shipments : [];
+    const legacyAmount = shippingBin.meta.amount ?? 0;
+    if (legacyAmount > 0 && shippingBin.meta.shipments.length === 0) {
+      shippingBin.meta.shipments.push({ cropId: "legacy", quality: null, amount: legacyAmount, unitPrice: 1 });
+    }
+    delete shippingBin.meta.amount;
   }
   consolidateStackableCards(state);
   return state;
@@ -169,6 +182,7 @@ export function dropAction(state, sourceId, targetId) {
   if (source.typeId === "farmer" && targetArea && targetArea !== farmerArea(state)) return null;
 
   if (CARD_DEFS[source.typeId]?.cropState === "produce" && target.typeId === "shipping_bin") return "ship";
+  if (target.typeId === "farmer" && !carriedItem(state, target.id) && canTendCrop(source)) return "tend_crop";
 
   if (source.typeId !== "farmer") return null;
   const carried = carriedItem(state, source.id);
@@ -384,8 +398,8 @@ export function resolveDrop(state, sourceId, targetId) {
   if (action === "ship") {
     const amount = source.meta.amount ?? 1;
     const produceName = CARD_DEFS[source.typeId].name;
+    queueShipment(target, source.typeId, amount);
     removeCard(next, source.id);
-    target.meta.amount = (target.meta.amount ?? 0) + amount;
     events.push(`${amount} ${produceName} packed for tonight's shipment.`);
   }
 
@@ -393,12 +407,18 @@ export function resolveDrop(state, sourceId, targetId) {
     const produce = carriedItem(next, source.id);
     const amount = produce?.meta.amount ?? 1;
     const produceName = produce ? CARD_DEFS[produce.typeId].name : "produce";
+    if (produce) queueShipment(target, produce.typeId, amount);
     if (produce) removeCard(next, produce.id);
-    target.meta.amount = (target.meta.amount ?? 0) + amount;
     events.push(`${amount} carried ${produceName} packed for tonight's shipment.`);
   }
 
-  if (["clear_grass", "till_soil", "refill_watering_can", "water_plot", "sow", "sow_watered", "water_crop", "harvest", "dig_potatoes", "remove_crop"].includes(action)) {
+  if (action === "tend_crop") {
+    tendCrop(source);
+    const crop = cropForType(source.typeId);
+    events.push(`Farmer tends the ${crop?.name ?? "crop"}. Its next harvest will become a visible Choice card.`);
+  }
+
+  if (["clear_grass", "till_soil", "refill_watering_can", "water_plot", "sow", "sow_watered", "water_crop", "harvest_crop", "remove_crop"].includes(action)) {
     finishJob(next, {
       kind: action,
       workerId: source.id,
@@ -423,7 +443,7 @@ function finishJob(state, job, events) {
   const areaId = target.meta.areaId;
   const landMeta = { areaId, isLand: true };
 
-  if (["water_plot", "sow", "sow_watered", "water_crop", "harvest", "dig_potatoes", "remove_crop"].includes(job.kind)) {
+  if (["water_plot", "sow", "sow_watered", "water_crop", "harvest_crop", "remove_crop"].includes(job.kind)) {
     applyCropJob(state, job, { findCard, removeCard, spawn }, events);
   }
 
@@ -453,12 +473,34 @@ function finishJob(state, job, events) {
   }
 }
 
+function queueShipment(shippingBin, produceTypeId, amount) {
+  shippingBin.meta.shipments ??= [];
+  const definition = CARD_DEFS[produceTypeId];
+  const cropId = definition?.cropId ?? "unknown";
+  const quality = definition?.quality ?? null;
+  const unitPrice = definition?.sellPrice ?? 1;
+  const existing = shippingBin.meta.shipments.find((entry) => entry.cropId === cropId
+    && entry.quality === quality
+    && entry.unitPrice === unitPrice);
+  if (existing) existing.amount += amount;
+  else shippingBin.meta.shipments.push({ cropId, quality, amount, unitPrice });
+}
+
+export function shipmentTotals(state) {
+  const shippingBin = state.cards.find((item) => item.typeId === "shipping_bin");
+  const shipments = shippingBin?.meta.shipments ?? [];
+  return shipments.reduce((total, entry) => ({
+    amount: total.amount + (entry.amount ?? 0),
+    value: total.value + (entry.amount ?? 0) * (entry.unitPrice ?? 1),
+  }), { amount: 0, value: 0 });
+}
+
 function collectShipment(state) {
   const shippingBin = state.cards.find((item) => item.typeId === "shipping_bin");
-  const amount = shippingBin?.meta.amount ?? 0;
-  if (shippingBin) shippingBin.meta.amount = 0;
-  state.coins += amount;
-  return amount;
+  const totals = shipmentTotals(state);
+  if (shippingBin) shippingBin.meta.shipments = [];
+  state.coins += totals.value;
+  return totals;
 }
 
 export function endDay(state) {
@@ -466,10 +508,14 @@ export function endDay(state) {
   if (next.phase !== "playing") return next;
   const events = [];
   advanceGrowingCrops(next, events);
-  const earned = collectShipment(next);
+  const shipment = collectShipment(next);
+  const earned = shipment.value;
   next.seasonStats.coinsEarned += earned;
   const reachedFirstMilestone = !next.milestones.firstSixCoins && next.coins >= GAME.goalCoins;
-  if (reachedFirstMilestone) next.milestones.firstSixCoins = true;
+  if (reachedFirstMilestone) {
+    next.milestones.firstSixCoins = true;
+    recordMilestoneMemory(next, "six-coins", "The farm brought six coins home for the first time.");
+  }
   const seasonEnded = next.day >= GAME.seasonLengthDays;
   if (!seasonEnded) {
     next.day += 1;
@@ -489,12 +535,13 @@ export function endDay(state) {
       carried.y = clamp(farmer.y + 32, 30, BOARD_MAX_Y);
     }
   }
-  if (earned > 0) events.push(`${earned} shipment coins arrived.`);
+  if (earned > 0) events.push(`${shipment.amount} produce brought ${earned} shipment coins home.`);
   if (reachedFirstMilestone) events.push("The farm reached its first six-coin milestone.");
   if (seasonEnded) {
     next.phase = "weekly_journal";
     next.actionPoints = 0;
-    const cropsGrowing = next.cards.filter((item) => ["thirsty", "watered", "ready", "partial_harvest"].includes(CARD_DEFS[item.typeId]?.cropState)).length;
+    const cropsGrowing = next.cards.filter((item) => ["thirsty", "watered", "early_ready", "ready", "partial_harvest"].includes(CARD_DEFS[item.typeId]?.cropState)).length;
+    recordMilestoneMemory(next, `week-${next.week}`, `${GAME.seasonName} Week ${next.week} became part of the farm's story.`);
     next.seasonSummary = { ...next.seasonStats, cropsGrowing };
     events.push(`${GAME.seasonName} Week ${next.week} is complete. The farm carries on.`);
   } else {
@@ -512,7 +559,7 @@ export function continueFarm(state) {
     next.day = 1;
     next.weather = weatherForDay(1);
     next.actionPoints = GAME.actionPointsPerDay;
-    next.seasonStats = { coinsEarned: 0, harvestCount: 0 };
+    next.seasonStats = { coinsEarned: 0, harvestCount: 0, memories: [] };
     next.seasonSummary = null;
     next.lastMessage = `${GAME.seasonName} Week ${next.week} begins. The same farm continues with ${GAME.actionPointsPerDay} AP.`;
   }
@@ -522,24 +569,26 @@ export function continueFarm(state) {
 export function currentHint(state) {
   const farmer = state.cards.find((item) => item.typeId === "farmer");
   const carried = farmer && carriedItem(state, farmer.id);
-  const bin = state.cards.find((item) => item.typeId === "shipping_bin");
+  const queuedShipment = shipmentTotals(state);
   if (farmerArea(state) === "town") {
     if (state.coins >= Math.min(...Object.values(CROPS).map((crop) => crop.seedBundleCost))) return "The General Store has Spring Seeds to choose from. Drag Home Farm onto the table when ready.";
     return "Valley Town is open to inspect. Drag the Home Farm Landmark onto the table to return.";
   }
   if (state.actionPoints <= 0) return "No AP remains. Free actions still work; end the day when ready to recover.";
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "partial_harvest")) return "Potato Mounds remain. Equip the Hoe to finish digging.";
-  if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "ready" && cropForType(item.typeId)?.harvestTool)) return "Mature Potatoes are ready. Equip the Hoe to dig them.";
+  if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "early_ready")) return "Baby Radishes can be harvested now, or watered deliberately to keep growing.";
+  if (state.cards.some((item) => canTendCrop(item))) return "Care is optional: drag a growing crop onto Farmer to Tend it for a Choice harvest.";
+  if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "ready" && cropForType(item.typeId)?.harvestTool)) return "A Tool-harvest crop is ready. Equip its required Tool.";
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "ready")) return carried
     ? "A crop is ready. Free Farmer's hands to harvest it."
     : "A mature crop is ready to harvest by hand.";
   if (carried) return `Farmer is carrying ${CARD_DEFS[carried.typeId].name}. Play another item card to swap.`;
-  if ((bin?.meta.amount ?? 0) > 0) return `${bin.meta.amount} produce will become coins when the day ends.`;
+  if (queuedShipment.amount > 0) return `${queuedShipment.amount} produce will bring ${queuedShipment.value} coins when the day ends.`;
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "produce" && !item.meta.inHand)) return "Fresh produce is waiting for the Shipping Bin or Hand.";
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "thirsty")) return "A planted crop still needs water.";
   if (state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "watered")) return "End the day when ready; watered crops grow overnight.";
   if (state.cards.some((item) => item.typeId === "watered_empty_plot")) return "Watered soil is ready for Seeds.";
-  if (!state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "seeds") && state.coins >= 2) return "The General Store has Carrot, Green Bean and Potato Seeds.";
+  if (!state.cards.some((item) => CARD_DEFS[item.typeId]?.cropState === "seeds") && state.coins >= 1) return "The General Store has five different Spring crop behaviors.";
   if (state.cards.some((item) => item.typeId === "empty_plot")) return "Cleared soil can be watered or sown first.";
   if (state.cards.some((item) => item.typeId === "cleared_ground")) return "Equip the Hoe to till the Cleared Ground.";
   if (state.cards.some((item) => item.typeId === "wild_soil")) return "Equip the Sickle to cut the grass.";
@@ -552,8 +601,9 @@ export function cardLabel(state, item) {
     const carried = carriedItem(state, item.id);
     if (carried) return `${definition.name} · Carrying ${CARD_DEFS[carried.typeId].name}`;
   }
-  if (item.typeId === "shipping_bin" && (item.meta.amount ?? 0) > 0) {
-    return `${definition.name} · ${item.meta.amount} produce`;
+  if (item.typeId === "shipping_bin") {
+    const totals = shipmentTotals(state);
+    if (totals.amount > 0) return `${definition.name} · ${totals.amount} produce · ${totals.value} coins`;
   }
   if (item.typeId === "watering_can") {
     const charges = item.meta.charges ?? 0;
@@ -561,7 +611,7 @@ export function cardLabel(state, item) {
       ? `${definition.name} · ${charges}/${GAME.wateringCanCapacity}`
       : `${definition.name} · Empty`;
   }
-  if (["thirsty", "watered"].includes(definition.cropState)) {
+  if (["thirsty", "watered", "early_ready"].includes(definition.cropState)) {
     const crop = cropForType(item.typeId);
     const days = item.meta.growthRemainingDays ?? crop?.growthDays ?? GAME.cropGrowthDays;
     return `${definition.name} · ${days}d`;

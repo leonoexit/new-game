@@ -1,12 +1,12 @@
 # Potato behavior v0.1
 
-Status: **proposed for focused implementation**
+Status: **implemented in Spring Farming v1**
 
 Potato should make harvesting feel like digging up a root crop without adding random yield or a reload incentive.
 
 ## Seed fields
 
-- Cost: 2 coins
+- Cost: 1 coin after deterministic balance review; the second Hoe dig already supplies the crop's extra action cost
 - First harvest: 2 watered nights
 - Yield: 4 Potatoes total, delivered as two visible digs of 2
 - After harvest: the first dig leaves a Potato Mound on the same Land; the second dig returns that Land to an Empty Plot
@@ -33,6 +33,6 @@ The two-step deterministic reveal is the controlled variation: the player receiv
 - Sickle removes thirsty, watered or mature Potato crops with no Produce. A Potato Mound is already being harvested and is finished with the Hoe, not cleared with the Sickle.
 - The Weekly Journal counts each completed Potato crop once, on the second dig, rather than counting both partial digs as separate harvests.
 
-## Art gate
+## Art status
 
-Do not add Potato card definitions to the runtime until the crop identity and required assets are explicitly approved. The first candidate is recorded under `art/style-studies/world-card-young-potatoes-v0.1/`.
+The complete Potato family is runtime approved and recorded under `art/style-studies/`. Young, watered, mature, mound, Seed and Produce assets are integrated.

@@ -10,7 +10,7 @@ It is a solo farm-management game represented through persistent physical cards.
 
 The two-plot, one-Farmer loop was playtested positively on 2026-09-19. Protect its speed, tactile movement, direct board feedback, player-organized layout and bright handheld palette.
 
-The three-Land/four-crop direction has now produced a clear planning effect in hands-on play: because not every crop can occupy Land at once, the player naturally compares commitments in their head. Do not add a fourth Land yet. The strongest emotional feedback is also not score excitement but a Tamagotchi-like feeling of caring for a small, cute living thing. Protect persistence, visible care and attachment over optimization pressure.
+The three-Land/five-crop direction makes crop behavior compete for scarce persistent space: because not every crop can occupy Land at once, the player must compare commitments in their head. Do not add a fourth Land. The strongest emotional feedback is also not score excitement but a Tamagotchi-like feeling of caring for a small, cute living thing. Protect persistence, visible care and attachment over optimization pressure.
 
 Interaction v0.3 keeps tap and drag as parallel paths through the same engine. Selection is transient and never saved. Farmer moves with one attached card; dropping that carried card away from a valid target returns it to the Hand. When Farmer carries an item, valid targets glow immediately and can be tapped without selecting Farmer first.
 
@@ -29,7 +29,7 @@ The Backpack UI was removed. The lower screen is now the Hand, where persistent 
 - Hoe, Watering Can and Sickle begin in the Hand.
 - Tap/play an item card from the Hand to equip it; the previously carried card returns to the Hand.
 - Drag any loose portable card into the Hand to store it; dropping a carried item away from a valid target also returns it.
-- Tools, Seeds and Carrots are portable.
+- Tools, every Seed family and ordinary/Choice Produce are portable.
 - Farmer has one shared carrying slot.
 - Home Farm and Valley Town Landmark cards stay in the Landmark group.
 - The current Area Landmark is face-up on its table and inactive Landmarks live in the Hand. Dragging a destination Landmark onto the table swaps it with the current Landmark and changes Area; tapping only explains the gesture.
@@ -85,14 +85,14 @@ Wild Soil requires the Sickle and then the Hoe before either sow/water path. Onc
 ## Green Bean crop lifecycle v0.1
 
 - The General Store sells one physical Seed per purchase: one Carrot Seed for one coin or one Green Bean Seed for two coins.
-- Green Beans need three watered nights for the first harvest and produce four Beans.
+- Green Beans need three watered nights for the first harvest and produce three Beans.
 - Harvest leaves the vines on the same Land card instead of returning it to Empty Plot.
 - The vines need two watered nights to regrow; missed water pauses them like Carrots.
 - Dry, watered, mature, seed and produce states have dedicated runtime artwork.
 
 ## Potato crop lifecycle v0.1
 
-- Potato Seeds cost two coins and need two watered nights.
+- Potato Seeds cost one coin and need two watered nights.
 - Mature Potatoes require the Hoe instead of free-hand harvest.
 - The first dig costs 1 AP, yields two Potatoes and leaves visible Potato Mounds on the same Land.
 - The second dig costs 1 AP, yields two more Potatoes and returns the Land to an Empty Plot.
@@ -101,9 +101,25 @@ Wild Soil requires the Sickle and then the Hoe before either sow/water path. Onc
 - Potato Seeds and Produce consolidate by quantity, rain waters growing Potatoes, and the Sickle can remove growing or mature Potato crops.
 - Young, watered, mature, mound, Seed and Produce states have dedicated approved native-pixel artwork.
 
+## Cauliflower and Radish crop lifecycles
+
+- Cauliflower Seeds cost three coins, need four watered nights and produce nine Cauliflowers. The one-shot crop deliberately occupies Land for most of a Week before its large payoff.
+- Radish Seeds cost one coin. After one watered night, Baby Radishes can be harvested for two Produce to release the Land, or deliberately watered for two more nights to produce five full Radishes.
+- Rain waters thirsty Radishes normally but does not silently continue the Baby state; the grow-versus-harvest choice stays explicit.
+- Both families have runtime-approved dry, watered, mature/decision-state, Seed and Produce art.
+
+## Shared Quality and farm memory
+
+- Dragging a thirsty, watered or Baby crop onto a free-handed Farmer—or using the same tap path—Tends it for 1 AP.
+- Tended state is visible on the crop card, persisted in saves and deterministic.
+- The next harvest becomes a separate visible Choice Produce card. Choice and ordinary Produce consolidate separately but ship at the same rate.
+- Green Bean care resets each regrow cycle; Potato care survives both digs; removal yields nothing and clears pending care.
+- The first Choice harvest of each crop enters the persistent memory book. Crop discoveries, first harvest, first Quality and farm milestones feed the Weekly Journal.
+- Quality has no perfect-watering rule, random roll or reload incentive. Its reward is a visible card transformation and a care memory rather than mandatory coin optimization.
+
 ## Money and economy
 
-Money is now a numeric HUD unit (`state.coins`), not a Coin Purse card. The General Store sells one Carrot Seed for one coin, or one Green Bean/Potato Seed for two coins. Repeated purchases increase the quantity on the matching Seed card.
+Money is now a numeric HUD unit (`state.coins`), not a Coin Purse card. The General Store sells Carrot, Potato and Radish Seeds for one coin, Green Bean Seeds for two, and Cauliflower Seeds for three. Repeated purchases increase the quantity on the matching Seed card.
 
 The General Store no longer embeds always-visible purchase buttons. Farmer physically targets the Store through tap or drag, then a temporary tray presents the current Seed cards with cost, first harvest, yield and post-harvest behavior. Opening the tray and buying remain free actions; Town travel still costs AP.
 
@@ -166,44 +182,19 @@ Watering Can now also has a filled-state item variant with visible water inside 
 
 Green Beans now have a complete runtime art family. Home Farm and Valley Town each have a generated low-contrast native-pixel table background recorded under `art/style-studies/area-background-*/`.
 
+Cauliflower and Radish now have complete runtime-approved art families. Each generated source, processed delivery, logical-size preview, prompt and review decision is recorded under its crop-specific `art/style-studies/` directory. Choice Produce intentionally reuses its crop's Produce raster and transforms visibly through the runtime card treatment, name and badge.
+
 Home Farm also has an approved rainy variant. Weather is persisted in state, shown in the compact HUD, and changes the Farm table background. The deterministic Spring prototype forecast uses rain on day 6; that morning automatically waters Empty Plots and thirsty crops without spending AP. This is currently an immersion experiment, not a claim that watering pressure is balanced.
 
 Shipping Bin art remains approved for the prototype with one caveat: a later revision should place it recognizably inside the protagonist's farm rather than a generic meadow.
 
-## Next checkpoint
+## Spring Farming v1 milestone
 
-Spring now runs as persistent seven-day weeks. End Day on day 7 resolves overnight growth and shipment income, then pauses on a Weekly Journal showing coins earned, harvests and crops still growing. Continue Farm starts the next week while preserving the entire farm; Reset Farm remains the explicit full restart. Crop Remains and cleanup mode were removed after playtesting showed they added punishment and chores without an interesting decision.
+Spring now runs as persistent seven-day Weeks with exactly three Land and five crop behaviors. End Day on day 7 resolves growth and shipment income, then pauses on a memory-oriented Weekly Journal. Continue Farm preserves Land, crops, Tools, supplies, Choice cards and the memory book; Reset Farm remains the explicit full restart.
 
-Crop lifecycle rules now live in `prototype/little-valley-cards/crop-system.js`; `engine.js` still owns action/AP orchestration, Area travel, store, shipping and messages.
+Crop lifecycle rules live in `prototype/little-valley-cards/crop-system.js`; deterministic care/memory rules live in `quality-system.js`; the reusable headless balance model lives in `balance-model.js`. `engine.js` still owns AP orchestration, Areas, Store, shipping and save migration. The initial balance pass led to three evidence-backed changes: Green Bean yield `4 → 3`, Potato Seed cost `2 → 1`, and removal of the proposed per-unit Choice payout multiplier.
 
-The next checkpoint is a hands-on transition across two Spring Weeks, especially whether continuity makes the farm feel persistent and whether four crop behaviors are needed for meaningful variety.
-
-The user should hands-on playtest:
-
-- whether 8 AP creates a useful constraint or merely interrupts the existing loop;
-- whether spending feedback is clear for both tap and drag interactions;
-- whether ending the day away from Home Farm and waking at Home creates a clear daily return loop;
-- whether free equip, purchase and deposit actions remain understandable beside paid work;
-- whether auto-armed carried Tools make tap play feel immediate without accidental actions;
-- whether long-press descriptions are discoverable enough on touch;
-- whether the generated Farm and Town table backgrounds communicate location without overpowering cards;
-- whether one prepared Plot plus one Wild Soil is a better opening than clearing every field;
-- whether two watered nights make Carrots feel like a crop rather than a one-click conversion;
-- whether paused growth is legible when a crop dries each morning;
-
-- whether the bottom Hand improves board readability;
-- whether one-tap play/swap is faster than managing loose Tool cards;
-- whether Sickle → Cleared Ground → Hoe reads naturally with the dedicated state art;
-- whether hand-harvest directly into the Hand feels immediate enough;
-- whether the money HUD is legible and purchasing feels direct;
-- whether both water/sow orders read naturally;
-- whether overnight growth and payout make the day boundary understandable;
-- whether End Day still lacks a meaningful opportunity cost;
-- whether dragging a Landmark from Hand onto the table feels like playing a card rather than clicking navigation;
-- whether the compact one-screen layout leaves enough room for both table interactions and the fixed Hand;
-- whether Carrots versus regrowing Green Beans creates a real short-term versus long-term choice;
-- whether the two Hand groups make portable objects and navigation cards immediately understandable;
-- whether each new image explains its card state at a glance.
+`prototype/little-valley-cards/BALANCE-REPORT.md` records simulator assumptions and eight-Week results. `prototype/little-valley-cards/SPRING-FARMING-V1-PLAYTEST.md` is the single hands-on milestone checklist; do not duplicate or split it across handoff documents.
 
 Do not operate the browser for playtesting unless the user explicitly asks. Do not commit or push without the user's request.
 
@@ -211,6 +202,9 @@ Do not operate the browser for playtesting unless the user explicitly asks. Do n
 
 - `PROJECT-STATUS.md` describes the current direction and experiment.
 - `prototype/little-valley-cards/README.md` describes the playable contract.
+- `prototype/little-valley-cards/SPRING-FARMING-V1-DESIGN.md` defines crop, Quality and memory behavior.
+- `prototype/little-valley-cards/BALANCE-REPORT.md` records deterministic simulator assumptions and results.
+- `prototype/little-valley-cards/SPRING-FARMING-V1-PLAYTEST.md` is the only hands-on milestone checklist.
 - `STYLE.md` and `little-valley-cards-art-bible-v0.1.md` control art production.
 - `CONTEXT-RESTORE-PROMPT.md` is the handoff prompt for the next session.
 

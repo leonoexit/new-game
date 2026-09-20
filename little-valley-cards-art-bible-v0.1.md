@@ -47,4 +47,4 @@ The portrait screen and portrait-shaped card do not imply portrait artwork. UI o
 
 ## Current approval state
 
-The farm reference approves rendering language. The empty plot, young carrots, well, roadside market, watering and harvest illustrations created on 2026-09-18 remain runtime-approved prototype assets. The Farmer, wild soil, carrot seed, carrot bunch and coin purse created on 2026-09-19 are runtime-approved for the physical-board prototype only. None of these assets define canonical composition, location, crop, NPC or protagonist identity.
+The farm reference approves rendering language. The Spring Farming v1 runtime has complete approved prototype families for Carrot, Green Bean, Potato, Cauliflower and Radish. Cauliflower dry/watered/mature, Seed and Produce assets and Radish dry/watered/baby/full, Seed and Produce assets passed review at their logical sizes on 2026-09-19; records live beside their sources and processed deliveries under `art/style-studies/`. Farmer, Tools, soil states, Well, Store, Shipping Bin, Landmarks and Area backgrounds also remain runtime approved. None of these assets define canonical NPC or protagonist identity.

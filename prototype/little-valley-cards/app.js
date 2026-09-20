@@ -1,5 +1,6 @@
 import { AREAS, CARD_DEFS, CROPS, GAME, cropForType } from "./data.js";
 import { seasonLabel } from "./crop-system.js";
+import { qualityNameFor } from "./quality-system.js";
 import {
   buySeeds,
   cardArea,
@@ -18,6 +19,7 @@ import {
   playFromHand,
   resolveDrop,
   returnToHand,
+  shipmentTotals,
   continueFarm,
   tapDecision,
   validTargets,
@@ -53,13 +55,7 @@ function detailFor(item) {
   if (definition.cropState === "seeds") {
     const crop = cropForType(item.typeId);
     if (!crop) return definition.description;
-    const firstHarvest = `${crop.growthDays} watered night${crop.growthDays === 1 ? "" : "s"}`;
-    const regrow = crop.regrowDays > 0
-      ? ` Vines remain and regrow in ${crop.regrowDays} watered nights.`
-      : crop.harvestTool
-        ? ` Harvest with the ${CARD_DEFS[crop.harvestTool].name} in ${crop.harvestSteps.length} digs of ${crop.harvestSteps.join(" + ")}.`
-      : " The crop is removed after harvest.";
-    return `Costs ${crop.seedBundleCost} coin${crop.seedBundleCost === 1 ? "" : "s"}. First harvest after ${firstHarvest}. Produces ${crop.harvestAmount} ${crop.name}.${regrow}`;
+    return `Costs ${crop.seedBundleCost} coin${crop.seedBundleCost === 1 ? "" : "s"}. First harvest: ${firstHarvestLabel(crop)}. ${crop.yieldLabel}. ${crop.afterHarvestLabel}.`;
   }
   if (["thirsty", "watered"].includes(definition.cropState)) {
     const crop = cropForType(item.typeId);
@@ -68,9 +64,10 @@ function detailFor(item) {
       ? `${days} watered ${days === 1 ? "night" : "nights"} until mature.`
       : `${days} ${days === 1 ? "night" : "nights"} remain · water today to grow.`;
   }
+  if (definition.cropState === "early_ready") return "Harvest now to free the Land, or water deliberately to continue toward the full crop.";
   if (item.typeId === "shipping_bin") {
-    const amount = item.meta.amount ?? 0;
-    return amount > 0 ? `${amount} produce settle when the day ends.` : CARD_DEFS[item.typeId].description;
+    const totals = shipmentTotals(state);
+    return totals.amount > 0 ? `${totals.amount} produce will bring ${totals.value} coins when the day ends.` : CARD_DEFS[item.typeId].description;
   }
   if (item.typeId === "watering_can") {
     const charges = item.meta.charges ?? 0;
@@ -92,8 +89,15 @@ function badgeFor(item, isPerson, carrying, attached) {
     return "Empty";
   }
   if (attached) return "Carried";
-  if (item.typeId === "shipping_bin" && (item.meta.amount ?? 0) > 0) return "Queued";
+  if (qualityNameFor(item)) return qualityNameFor(item);
+  if (item.meta.tended) return "Tended";
+  if (item.typeId === "shipping_bin" && shipmentTotals(state).amount > 0) return "Queued";
   return CARD_DEFS[item.typeId].badge;
+}
+
+function firstHarvestLabel(crop) {
+  if (crop.earlyTypeId) return `Baby after 1 watered night · full after ${crop.growthDays}`;
+  return `${crop.growthDays} watered night${crop.growthDays === 1 ? "" : "s"}`;
 }
 
 function artFor(item) {
@@ -121,7 +125,7 @@ function renderCard(item) {
   const inspected = inspectedCardId === item.id;
   const z = parent ? Math.round(parent.y) + 44 : Math.round(item.y) + (item.typeId === "farmer" ? 30 : 0);
   return `
-    <article class="world-card type-${item.typeId} ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${definition.kind === "Landmark" ? "landmark-card" : ""} ${item.typeId === "general_store" ? "service-card" : ""} ${attached ? "attached" : ""} ${selected ? "selected-source" : ""} ${tapTarget ? "tap-target" : ""} ${inspected ? "inspected" : ""}"
+    <article class="world-card type-${item.typeId} ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${definition.kind === "Landmark" ? "landmark-card" : ""} ${definition.quality === "choice" ? "quality-choice" : ""} ${item.meta.tended ? "tended-crop" : ""} ${item.typeId === "general_store" ? "service-card" : ""} ${attached ? "attached" : ""} ${selected ? "selected-source" : ""} ${tapTarget ? "tap-target" : ""} ${inspected ? "inspected" : ""}"
       data-card-id="${item.id}" style="--x:${item.x}; --y:${item.y}px; --z:${z}" aria-label="${cardLabel(state, item)}" role="button" tabindex="0" aria-pressed="${selected}">
       <div class="card-kicker"><span class="kind-label">${isPerson ? `<i class="actor-glyph" aria-hidden="true"></i>` : ""}${definition.kind}</span>${statusBadge ? `<b>${statusBadge}</b>` : ""}</div>
       <div class="card-art"><img src="${artFor(item)}" alt="" draggable="false" /></div>
@@ -148,7 +152,7 @@ function renderHandStack(stack) {
   return `<div class="hand-stack ${landmark ? "landmark-stack" : ""} ${stack.length > 1 ? "stacked" : ""}">
     ${stack.length > 2 ? `<i class="hand-stack-layer layer-two" aria-hidden="true"></i>` : ""}
     ${stack.length > 1 ? `<i class="hand-stack-layer layer-one" aria-hidden="true"></i>` : ""}
-    <button class="hand-card ${landmark ? "hand-landmark" : "hand-item"} ${active ? "active-landmark" : ""}" data-hand-id="${item.id}" data-hand-kind="${landmark ? "landmark" : "item"}" ${active ? "disabled" : ""} aria-label="${active ? `${definition.name}, current Area` : `${stackLabel}Play ${cardLabel(state, item)}${landmark ? " by dragging it onto the table, costs 1 AP" : ""}`}">
+    <button class="hand-card ${landmark ? "hand-landmark" : "hand-item"} ${definition.quality === "choice" ? "quality-choice" : ""} ${active ? "active-landmark" : ""}" data-hand-id="${item.id}" data-hand-kind="${landmark ? "landmark" : "item"}" ${active ? "disabled" : ""} aria-label="${active ? `${definition.name}, current Area` : `${stackLabel}Play ${cardLabel(state, item)}${landmark ? " by dragging it onto the table, costs 1 AP" : ""}`}">
       <img src="${artFor(item)}" alt="" /><span><small>${landmark ? "Drag to travel" : definition.kind}</small><strong>${definition.name}</strong></span>${active ? `<b>Here</b>` : landmark ? `<b>Play · 1 AP</b>` : handState(stack) ? `<b>${handState(stack)}</b>` : ""}
     </button>
   </div>`;
@@ -158,7 +162,13 @@ function renderHand() {
   const stacks = handStacks(state);
   const farmer = state.cards.find((item) => item.typeId === "farmer");
   const carried = farmer && carriedItem(state, farmer.id);
-  const order = { hoe: 0, watering_can: 1, sickle: 2, carrot_seeds: 3, green_bean_seeds: 4, potato_seeds: 5, carrots: 6, green_beans: 7, potatoes: 8 };
+  const order = { hoe: 0, watering_can: 1, sickle: 2 };
+  Object.values(CROPS).forEach((crop, index) => {
+    const base = 3 + index * 3;
+    order[crop.seedTypeId] = base;
+    order[crop.produceTypeId] = base + 1;
+    order[crop.choiceProduceTypeId] = base + 2;
+  });
   const portable = stacks
     .filter((stack) => CARD_DEFS[stack[0].typeId].kind !== "Landmark")
     .sort((a, b) => (order[a[0].typeId] ?? 99) - (order[b[0].typeId] ?? 99));
@@ -218,19 +228,14 @@ function render() {
 function renderStore() {
   const seedCards = Object.values(CROPS).map((crop) => {
     const definition = CARD_DEFS[crop.seedTypeId];
-    const afterHarvest = crop.regrowDays > 0
-      ? `Regrows in ${crop.regrowDays} nights`
-      : crop.harvestTool
-        ? `${CARD_DEFS[crop.harvestTool].name} · ${crop.harvestSteps.length} digs`
-        : "Plot clears";
     return `<article class="store-seed-card">
-      <small>Seed</small>
+      <small>${crop.behavior}</small>
       <img src="${definition.art}" alt="" />
       <strong>${definition.name}</strong>
       <dl>
-        <div><dt>First harvest</dt><dd>${crop.growthDays} watered nights</dd></div>
-        <div><dt>Yield</dt><dd>${crop.harvestTool ? `${crop.harvestAmount} total · ${crop.harvestSteps.join(" + ")}` : `${crop.harvestAmount} ${crop.name}`}</dd></div>
-        <div><dt>After</dt><dd>${afterHarvest}</dd></div>
+        <div><dt>First harvest</dt><dd>${firstHarvestLabel(crop)}</dd></div>
+        <div><dt>Yield</dt><dd>${crop.yieldLabel}</dd></div>
+        <div><dt>After</dt><dd>${crop.afterHarvestLabel}</dd></div>
       </dl>
       <button data-buy-seeds="${crop.id}" ${state.coins < crop.seedBundleCost ? "disabled" : ""}>Buy · ${crop.seedBundleCost} coin${crop.seedBundleCost === 1 ? "" : "s"}</button>
     </article>`;
@@ -255,9 +260,9 @@ function renderInspection() {
   const body = crop
     ? `<dl class="inspection-fields">
         <div><dt>Cost</dt><dd>${crop.seedBundleCost} coin${crop.seedBundleCost === 1 ? "" : "s"}</dd></div>
-        <div><dt>First harvest</dt><dd>${crop.growthDays} watered nights</dd></div>
-        <div><dt>Yield</dt><dd>${crop.harvestTool ? `${crop.harvestAmount} total · ${crop.harvestSteps.join(" + ")}` : `${crop.harvestAmount} ${crop.name}`}</dd></div>
-        <div><dt>After harvest</dt><dd>${crop.regrowDays > 0 ? `Regrows · ${crop.regrowDays} nights` : crop.harvestTool ? `${CARD_DEFS[crop.harvestTool].name} · ${crop.harvestSteps.length} digs` : "Plot clears"}</dd></div>
+        <div><dt>First harvest</dt><dd>${firstHarvestLabel(crop)}</dd></div>
+        <div><dt>Yield</dt><dd>${crop.yieldLabel}</dd></div>
+        <div><dt>After harvest</dt><dd>${crop.afterHarvestLabel}</dd></div>
       </dl>`
     : `<p>${detailFor(item)}</p>`;
   const progress = ["thirsty", "watered"].includes(definition.cropState)
@@ -266,7 +271,7 @@ function renderInspection() {
   return `<div class="inspection-backdrop" id="inspection-backdrop">
     <aside class="card-inspection" role="dialog" aria-modal="true" aria-label="${definition.name} details">
       <button id="close-inspection" aria-label="Close card details">Close</button>
-      <article class="inspection-card ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${definition.kind === "Landmark" ? "landmark-card" : ""}">
+      <article class="inspection-card ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${definition.kind === "Landmark" ? "landmark-card" : ""} ${definition.quality === "choice" ? "quality-choice" : ""} ${item.meta.tended ? "tended-crop" : ""}">
         <div class="card-kicker"><span class="kind-label">${isPerson ? `<i class="actor-glyph" aria-hidden="true"></i>` : ""}${definition.kind}</span>${statusBadge ? `<b>${statusBadge}</b>` : ""}</div>
         <div class="card-art"><img src="${artFor(item)}" alt="" /></div>
         <strong>${cardLabel(state, item)}</strong>
@@ -279,16 +284,21 @@ function renderInspection() {
 
 function renderWeeklyJournal() {
   const summary = state.seasonSummary ?? state.seasonStats;
+  const memories = summary.memories ?? [];
+  const memoryCards = memories.length
+    ? `<ul class="journal-memories">${memories.map((memory) => `<li><small>${memory.kind.replaceAll("_", " ")}</small><strong>${memory.text}</strong></li>`).join("")}</ul>`
+    : `<p class="quiet-week">No first happened this week. The familiar rhythm still belongs to this farm.</p>`;
+  const growing = summary.cropsGrowing === 1 ? "One crop is still living on the Land." : `${summary.cropsGrowing} crops are still living on the Land.`;
+  const shipping = summary.coinsEarned > 0
+    ? `The Shipping Bin brought ${summary.coinsEarned} coin${summary.coinsEarned === 1 ? "" : "s"} home.`
+    : "Nothing needed to leave through the Shipping Bin this week.";
   return `<section class="season-summary" role="dialog" aria-modal="true" aria-labelledby="season-summary-title">
     <div>
       <small>Spring Week ${state.week} complete</small>
       <h2 id="season-summary-title">The farm carries on</h2>
-      <dl>
-        <div><dt>Coins earned</dt><dd>${summary.coinsEarned}</dd></div>
-        <div><dt>Harvests</dt><dd>${summary.harvestCount}</dd></div>
-        <div><dt>Crops growing</dt><dd>${summary.cropsGrowing}</dd></div>
-      </dl>
-      <p>Land, crops, Tools and supplies will remain exactly as you left them.</p>
+      ${memoryCards}
+      <p>${shipping} ${growing}</p>
+      <p>Land, crops, Tools, supplies and farm memories remain exactly as you left them.</p>
       <button id="continue-week">Continue farm</button>
       <button id="restart-season">Reset farm</button>
     </div>
