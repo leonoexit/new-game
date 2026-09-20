@@ -1,21 +1,23 @@
-import { AREAS, CARD_DEFS, CROPS, GAME, cropForType } from "./data.js";
+import { AREAS, CARD_DEFS, CROPS, GAME, PROTOTYPE_2, cropForType } from "./data.js";
+import { cardPresentation } from "./card-presentation.js";
 import { seasonLabel } from "./crop-system.js";
-import { qualityNameFor } from "./quality-system.js";
+import { personDetails } from "./person-system.js";
 import {
   buySeeds,
   cardArea,
   cardLabel,
   carriedItem,
-  createGame,
+  createPrototype2Game,
   currentHint,
   endDay,
   farmerArea,
   findCard,
   freeHands,
   handStacks,
-  hydrateGame,
+  hydratePrototype2Game,
   interactionSourceId,
   moveCard,
+  newSpring,
   playFromHand,
   resolveDrop,
   returnToHand,
@@ -23,6 +25,7 @@ import {
   continueFarm,
   tapDecision,
   validTargets,
+  lifePathProgresses,
 } from "./engine.js";
 
 const root = document.querySelector("#game");
@@ -35,19 +38,22 @@ let inspectedCardId = null;
 let storeOpen = false;
 let toastTimer = null;
 let handInspectTimer = null;
+let chronicleOpen = true;
+let weatherOpen = false;
+let personBubble = null;
+let personBubbleTimer = null;
 
 function load() {
   try {
-    const saved = localStorage.getItem(GAME.storageKey)
-      ?? GAME.legacyStorageKeys.map((key) => localStorage.getItem(key)).find(Boolean);
-    return hydrateGame(JSON.parse(saved));
+    const saved = localStorage.getItem(PROTOTYPE_2.storageKey);
+    return hydratePrototype2Game(JSON.parse(saved));
   } catch {
-    return createGame();
+    return createPrototype2Game();
   }
 }
 
 function save() {
-  localStorage.setItem(GAME.storageKey, JSON.stringify(state));
+  localStorage.setItem(PROTOTYPE_2.storageKey, JSON.stringify(state));
 }
 
 function detailFor(item) {
@@ -78,23 +84,6 @@ function detailFor(item) {
   return CARD_DEFS[item.typeId].description;
 }
 
-function badgeFor(item, isPerson, carrying, attached) {
-  if (carrying) return "Carrying";
-  if (isPerson) return "Ready";
-  if (CARD_DEFS[item.typeId].kind === "Landmark") return "Here";
-  if (item.typeId === "watering_can") {
-    const charges = item.meta.charges ?? 0;
-    if (charges === GAME.wateringCanCapacity) return "Full";
-    if (charges > 0) return `${charges} Water`;
-    return "Empty";
-  }
-  if (attached) return "Carried";
-  if (qualityNameFor(item)) return qualityNameFor(item);
-  if (item.meta.tended) return "Tended";
-  if (item.typeId === "shipping_bin" && shipmentTotals(state).amount > 0) return "Queued";
-  return CARD_DEFS[item.typeId].badge;
-}
-
 function firstHarvestLabel(crop) {
   if (crop.earlyTypeId) return `Baby after 1 watered night · full after ${crop.growthDays}`;
   return `${crop.growthDays} watered night${crop.growthDays === 1 ? "" : "s"}`;
@@ -111,36 +100,42 @@ function implicitSourceId() {
   return farmer && carriedItem(state, farmer.id) ? farmer.id : null;
 }
 
+function presentationFor(item, interactionState = "idle") {
+  const carrying = item.typeId === "farmer" ? carriedItem(state, item.id) : null;
+  return cardPresentation(state, item, {
+    active: CARD_DEFS[item.typeId].kind === "Landmark" && item.meta.areaId === farmerArea(state),
+    carrying,
+    shipment: item.typeId === "shipping_bin" ? shipmentTotals(state) : null,
+    detail: carrying ? `${CARD_DEFS[carrying.typeId].name} attached · drag the stack` : detailFor(item),
+    interactionState,
+    art: artFor(item),
+  });
+}
+
+function renderCardFace(view) {
+  return `<div class="card-kicker"><span class="kind-label">${view.familyLabel}</span>${view.primaryStatus ? `<b>${view.primaryStatus}</b>` : ""}</div>
+    <div class="card-art"><img src="${view.art}" alt="" draggable="false" /></div>
+    <strong class="card-title">${view.title}</strong>
+    ${view.quantity ? `<span class="card-quantity">×${view.quantity}</span>` : ""}
+    ${view.progress ? `<div class="card-progress"><span>${view.progress.label}</span><div class="progress-shell crop"><i style="width:${100 * view.progress.value}%"></i></div></div>` : ""}`;
+}
+
 function renderCard(item) {
-  const definition = CARD_DEFS[item.typeId];
-  const isPerson = definition.kind === "Person";
   const attached = Boolean(item.meta.parentId);
-  const carrying = isPerson ? carriedItem(state, item.id) : null;
-  const statusBadge = badgeFor(item, isPerson, carrying, attached);
   const parent = attached ? findCard(state, item.meta.parentId) : null;
   const activeSourceId = selectedCardId ?? implicitSourceId();
   const selectionTargets = activeSourceId ? validTargets(state, activeSourceId) : [];
   const selected = selectedCardId === item.id;
   const tapTarget = selectionTargets.includes(item.id);
   const inspected = inspectedCardId === item.id;
+  const interactionState = selected ? "selected" : tapTarget ? "target" : "idle";
+  const view = presentationFor(item, interactionState);
   const z = parent ? Math.round(parent.y) + 44 : Math.round(item.y) + (item.typeId === "farmer" ? 30 : 0);
   return `
-    <article class="world-card type-${item.typeId} ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${definition.kind === "Landmark" ? "landmark-card" : ""} ${definition.quality === "choice" ? "quality-choice" : ""} ${item.meta.tended ? "tended-crop" : ""} ${item.typeId === "general_store" ? "service-card" : ""} ${attached ? "attached" : ""} ${selected ? "selected-source" : ""} ${tapTarget ? "tap-target" : ""} ${inspected ? "inspected" : ""}"
+    <article class="world-card type-${item.typeId} family-${view.family} ${view.artShape === "square" ? "square-art" : ""} ${attached ? "attached" : ""} ${selected ? "selected-source" : ""} ${tapTarget ? "tap-target" : ""} ${inspected ? "inspected" : ""}"
       data-card-id="${item.id}" style="--x:${item.x}; --y:${item.y}px; --z:${z}" aria-label="${cardLabel(state, item)}" role="button" tabindex="0" aria-pressed="${selected}">
-      <div class="card-kicker"><span class="kind-label">${isPerson ? `<i class="actor-glyph" aria-hidden="true"></i>` : ""}${definition.kind}</span>${statusBadge ? `<b>${statusBadge}</b>` : ""}</div>
-      <div class="card-art"><img src="${artFor(item)}" alt="" draggable="false" /></div>
-      <strong>${cardLabel(state, item)}</strong>
-      <p class="card-description">${carrying ? `${CARD_DEFS[carrying.typeId].name} attached · drag the stack` : detailFor(item)}</p>
-      ${["thirsty", "watered"].includes(definition.cropState) ? `<div class="progress-shell crop"><i style="width:${100 * (1 - item.meta.growthRemainingDays / (item.meta.growthTotalDays ?? cropForType(item.typeId)?.growthDays ?? GAME.cropGrowthDays))}%"></i></div>` : ""}
+      ${renderCardFace(view)}
     </article>`;
-}
-
-function handState(stack) {
-  const item = stack.at(-1);
-  if (item.typeId === "watering_can") return `Water ${item.meta.charges ?? 0}/${GAME.wateringCanCapacity}`;
-  const totalAmount = stack.reduce((total, card) => total + (card.meta.amount ?? 1), 0);
-  if (totalAmount > 1) return `×${totalAmount}`;
-  return "";
 }
 
 function renderHandStack(stack) {
@@ -148,12 +143,13 @@ function renderHandStack(stack) {
   const definition = CARD_DEFS[item.typeId];
   const landmark = definition.kind === "Landmark";
   const active = landmark && item.meta.areaId === farmerArea(state);
+  const view = presentationFor(item);
   const stackLabel = stack.length > 1 ? `${stack.length} stacked cards, ` : "";
   return `<div class="hand-stack ${landmark ? "landmark-stack" : ""} ${stack.length > 1 ? "stacked" : ""}">
     ${stack.length > 2 ? `<i class="hand-stack-layer layer-two" aria-hidden="true"></i>` : ""}
     ${stack.length > 1 ? `<i class="hand-stack-layer layer-one" aria-hidden="true"></i>` : ""}
-    <button class="hand-card ${landmark ? "hand-landmark" : "hand-item"} ${definition.quality === "choice" ? "quality-choice" : ""} ${active ? "active-landmark" : ""}" data-hand-id="${item.id}" data-hand-kind="${landmark ? "landmark" : "item"}" ${active ? "disabled" : ""} aria-label="${active ? `${definition.name}, current Area` : `${stackLabel}Play ${cardLabel(state, item)}${landmark ? " by dragging it onto the table, costs 1 AP" : ""}`}">
-      <img src="${artFor(item)}" alt="" /><span><small>${landmark ? "Drag to travel" : definition.kind}</small><strong>${definition.name}</strong></span>${active ? `<b>Here</b>` : landmark ? `<b>Play · 1 AP</b>` : handState(stack) ? `<b>${handState(stack)}</b>` : ""}
+    <button class="hand-card family-${view.family} ${landmark ? "hand-landmark" : "hand-item"} ${active ? "active-landmark" : ""}" data-hand-id="${item.id}" data-hand-kind="${landmark ? "landmark" : "item"}" ${active ? "disabled" : ""} aria-label="${active ? `${definition.name}, current Area` : `${stackLabel}Play ${cardLabel(state, item)}${landmark ? " by dragging it onto the table, costs 1 AP" : ""}`}">
+      <img src="${view.art}" alt="" /><span><small>${view.familyLabel}</small><strong>${view.title}</strong></span>${active ? `<b>Here</b>` : landmark ? `<b>Play · 1 AP</b>` : view.primaryStatus ? `<b>${view.primaryStatus}</b>` : ""}${view.quantity ? `<em>×${view.quantity}</em>` : ""}
     </button>
   </div>`;
 }
@@ -177,7 +173,7 @@ function renderHand() {
     .filter(Boolean);
   return `
     <section class="hand" id="hand" aria-label="Hand">
-      <header><div><span>Hand</span><small>Tap to play · hold to inspect</small></div><nav><button id="reset">Reset farm</button><button id="free-hands" ${carried ? "" : "disabled"}>Return item</button></nav></header>
+      <header><div><span>Hand</span><small>Tap to play · hold to inspect</small></div><nav><button id="reset">New Spring</button><button id="free-hands" ${carried && state.phase === "playing" ? "" : "disabled"}>Return item</button></nav></header>
       <div class="hand-scroll">
         <div class="hand-group"><small>Items</small><div>${portable.length ? portable.map(renderHandStack).join("") : `<p>No item cards</p>`}</div></div>
         <div class="hand-group landmarks"><small>Landmarks</small><div>${landmarks.map(renderHandStack).join("")}</div></div>
@@ -200,38 +196,80 @@ function render() {
     : implicitItem && validTargets(state, implicitSource).length
       ? `${CARD_DEFS[implicitItem.typeId].name} ready · tap a glowing target or drag Farmer.`
     : currentHint(state);
+  const condition = PROTOTYPE_2.conditions[state.run?.conditionId];
   const boardCards = state.cards.filter((item) => !item.meta.inHand && cardArea(state, item) === activeAreaId);
   root.innerHTML = `
     <section class="game-shell">
       <header class="compact-hud">
-        <div class="place-unit"><small>${seasonLabel(state)} · ${state.weather === "rainy" ? "Rain" : "Sun"}</small><strong>${currentArea.name}</strong></div>
+        <div class="place-unit"><small>${seasonLabel(state)} · ${state.weather === "rainy" ? "Rain" : "Sun"} · ${condition?.name ?? "Spring"}</small><strong>${currentArea.name}</strong></div>
         <div class="ap-unit ${state.actionPoints === 0 ? "empty" : ""}" aria-label="${state.actionPoints} of ${GAME.actionPointsPerDay} action points remaining"><i>AP</i><span>${state.actionPoints}<small>/${GAME.actionPointsPerDay}</small></span></div>
         <div class="money-unit" aria-label="${state.coins} coins"><i></i><span>${state.coins}</span><small>coins</small></div>
-        <button id="end-day" ${state.phase !== "playing" ? "disabled" : ""}>End Day</button>
+        ${state.phase === "spring_chronicle"
+          ? `<button id="view-chronicle">Chronicle</button>`
+          : `<button id="end-day" ${state.phase !== "playing" ? "disabled" : ""}>End Day</button>`}
       </header>
 
       <section class="board-wrap">
         <div class="world-board area-${activeAreaId} weather-${state.weather}" id="world-board" aria-label="${currentArea.name} card table, ${state.weather} weather">
           <p class="board-message" id="message">${guidance}</p>
+          ${renderWeatherCard(condition)}
           ${boardCards.map(renderCard).join("")}
+          ${renderPersonBubble()}
         </div>
       </section>
       ${renderHand()}
       ${storeOpen ? renderStore() : ""}
       ${renderInspection()}
+      ${weatherOpen ? renderWeatherInspection(condition) : ""}
       ${state.phase === "weekly_journal" ? renderWeeklyJournal() : ""}
+      ${state.phase === "spring_chronicle" && chronicleOpen ? renderSpringChronicle() : ""}
       <div class="toast" id="toast" role="status"></div>
     </section>`;
   bindEvents();
 }
 
+function renderWeatherCard(condition) {
+  const rainy = state.weather === "rainy";
+  return `<button class="weather-card ${rainy ? "rainy" : "sunny"}" id="view-weather" aria-label="Inspect ${rainy ? "Rain" : "Sun"} weather and Spring forecast">
+    <span class="weather-symbol" aria-hidden="true">${rainy ? "☂" : "☀"}</span>
+    <small>Weather</small>
+    <strong>${rainy ? "Rain" : "Sun"}</strong>
+    <b>${condition.name}</b>
+  </button>`;
+}
+
+function renderWeatherInspection(condition) {
+  const forecast = condition.weatherByDay.map((weather, index) => `<li class="${weather}"><small>Day ${index + 1}</small><strong>${weather === "rainy" ? "Rain" : "Sun"}</strong></li>`).join("");
+  return `<div class="inspection-backdrop weather-inspection" id="weather-inspection-backdrop">
+    <aside class="card-inspection" role="dialog" aria-modal="true" aria-labelledby="weather-inspection-title">
+      <button id="close-weather-inspection" aria-label="Close Weather card">Close</button>
+      <article class="weather-card inspection-weather ${state.weather}">
+        <span class="weather-symbol" aria-hidden="true">${state.weather === "rainy" ? "☂" : "☀"}</span>
+        <small>Weather</small>
+        <strong id="weather-inspection-title">${state.weather === "rainy" ? "Rain" : "Sun"}</strong>
+        <b>${condition.name}</b>
+      </article>
+      <div class="inspection-content"><small>Fourteen-day forecast · Seed ${state.run.seed}</small><p>${condition.description}</p><ol class="weather-forecast">${forecast}</ol></div>
+    </aside>
+  </div>`;
+}
+
+function renderPersonBubble() {
+  if (!personBubble) return "";
+  const person = findCard(state, personBubble.cardId);
+  if (!person || person.meta.absent || cardArea(state, person) !== farmerArea(state)) return "";
+  return `<div class="person-speech" role="status" style="--bubble-x:${person.x}; --bubble-y:${Math.max(24, person.y - 48)}px"><strong>${CARD_DEFS[person.typeId].name}</strong><span>${personBubble.text}</span></div>`;
+}
+
 function renderStore() {
   const seedCards = Object.values(CROPS).map((crop) => {
     const definition = CARD_DEFS[crop.seedTypeId];
-    return `<article class="store-seed-card">
-      <small>${crop.behavior}</small>
-      <img src="${definition.art}" alt="" />
-      <strong>${definition.name}</strong>
+    const item = { typeId: crop.seedTypeId, meta: { amount: 1 } };
+    const view = cardPresentation(state, item, { primaryStatus: crop.behavior, art: definition.art });
+    return `<article class="store-seed-card family-${view.family}">
+      <div class="card-kicker"><span class="kind-label">${view.familyLabel}</span><b>${view.primaryStatus}</b></div>
+      <div class="card-art"><img src="${view.art}" alt="" /></div>
+      <strong class="card-title">${view.title}</strong>
       <dl>
         <div><dt>First harvest</dt><dd>${firstHarvestLabel(crop)}</dd></div>
         <div><dt>Yield</dt><dd>${crop.yieldLabel}</dd></div>
@@ -252,12 +290,19 @@ function renderInspection() {
   const item = inspectedCardId ? findCard(state, inspectedCardId) : null;
   if (!item) return "";
   const definition = CARD_DEFS[item.typeId];
-  const isPerson = definition.kind === "Person";
-  const carrying = isPerson ? carriedItem(state, item.id) : null;
-  const attached = Boolean(item.meta.parentId);
-  const statusBadge = badgeFor(item, isPerson, carrying, attached);
+  const view = presentationFor(item);
+  const person = personDetails(state, item);
   const crop = definition.cropState === "seeds" ? cropForType(item.typeId) : null;
-  const body = crop
+  const body = person
+    ? `<p>${person.summary}</p>
+      <dl class="inspection-fields person-fields">
+        <div><dt>Weekly rhythm</dt><dd>${person.scheduleLabel}</dd></div>
+        <div><dt>Interests</dt><dd>${person.interestsLabel || "Everyday time in the valley"}</dd></div>
+      </dl>
+      <div class="person-memories"><small>Memory</small>${person.moments.length
+        ? `<ul>${person.moments.map((moment) => `<li>${moment}</li>`).join("")}</ul>`
+        : `<p>No shared moments yet.</p>`}</div>`
+    : crop
     ? `<dl class="inspection-fields">
         <div><dt>Cost</dt><dd>${crop.seedBundleCost} coin${crop.seedBundleCost === 1 ? "" : "s"}</dd></div>
         <div><dt>First harvest</dt><dd>${firstHarvestLabel(crop)}</dd></div>
@@ -265,19 +310,13 @@ function renderInspection() {
         <div><dt>After harvest</dt><dd>${crop.afterHarvestLabel}</dd></div>
       </dl>`
     : `<p>${detailFor(item)}</p>`;
-  const progress = ["thirsty", "watered"].includes(definition.cropState)
-    ? `<div class="progress-shell crop"><i style="width:${100 * (1 - item.meta.growthRemainingDays / (item.meta.growthTotalDays ?? cropForType(item.typeId)?.growthDays ?? GAME.cropGrowthDays))}%"></i></div>`
-    : "";
   return `<div class="inspection-backdrop" id="inspection-backdrop">
     <aside class="card-inspection" role="dialog" aria-modal="true" aria-label="${definition.name} details">
       <button id="close-inspection" aria-label="Close card details">Close</button>
-      <article class="inspection-card ${definition.artShape === "square" ? "square-art" : ""} ${isPerson ? "person-card" : ""} ${definition.kind === "Landmark" ? "landmark-card" : ""} ${definition.quality === "choice" ? "quality-choice" : ""} ${item.meta.tended ? "tended-crop" : ""}">
-        <div class="card-kicker"><span class="kind-label">${isPerson ? `<i class="actor-glyph" aria-hidden="true"></i>` : ""}${definition.kind}</span>${statusBadge ? `<b>${statusBadge}</b>` : ""}</div>
-        <div class="card-art"><img src="${artFor(item)}" alt="" /></div>
-        <strong>${cardLabel(state, item)}</strong>
-        ${progress}
+      <article class="inspection-card family-${view.family} ${view.artShape === "square" ? "square-art" : ""}">
+        ${renderCardFace(view)}
       </article>
-      <div class="inspection-content"><small>Description</small><strong>${definition.name}</strong>${body}</div>
+      <div class="inspection-content"><small>${person ? "Presence & memory" : "Description"}</small><strong>${definition.name}</strong>${body}</div>
     </aside>
   </div>`;
 }
@@ -292,15 +331,36 @@ function renderWeeklyJournal() {
   const shipping = summary.coinsEarned > 0
     ? `The Shipping Bin brought ${summary.coinsEarned} coin${summary.coinsEarned === 1 ? "" : "s"} home.`
     : "Nothing needed to leave through the Shipping Bin this week.";
+  const paths = lifePathProgresses(state);
   return `<section class="season-summary" role="dialog" aria-modal="true" aria-labelledby="season-summary-title">
     <div>
       <small>Spring Week ${state.week} complete</small>
       <h2 id="season-summary-title">The farm carries on</h2>
-      ${memoryCards}
-      <p>${shipping} ${growing}</p>
-      <p>Land, crops, Tools, supplies and farm memories remain exactly as you left them.</p>
-      <button id="continue-week">Continue farm</button>
-      <button id="restart-season">Reset farm</button>
+      <div class="summary-scroll">
+        ${memoryCards}
+        <p>${shipping} ${growing}</p>
+        <p class="journal-goal"><strong>The Spring is still taking shape.</strong><br>${paths.map((path) => path.detail).join(" · ")}</p>
+        <p>Land, crops, Tools, supplies and farm memories remain exactly as you left them.</p>
+      </div>
+      <div class="summary-actions">
+        <button id="continue-week">Begin Week 2</button>
+        <button id="restart-season">New Spring</button>
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderSpringChronicle() {
+  const chronicle = state.run.chronicle;
+  return `<section class="season-summary spring-chronicle" role="dialog" aria-modal="true" aria-labelledby="chronicle-title">
+    <div>
+      <small>${chronicle.condition} · Spring complete</small>
+      <h2 id="chronicle-title">${chronicle.title}</h2>
+      <div class="summary-scroll"><div class="chronicle-prose">${chronicle.paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("")}</div></div>
+      <div class="summary-actions">
+        <button id="review-spring">Review farm</button>
+        <button id="restart-season">Begin a new Spring</button>
+      </div>
     </div>
   </section>`;
 }
@@ -311,27 +371,89 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 1500);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+}
+
+function resultFeedback(result) {
+  if (!result.ok) return result.message;
+  return null;
+}
+
+function capturePersonBubble(result) {
+  if (!result.ok || !["spend_time", "share_produce"].includes(result.action) || !result.targetId) return;
+  personBubble = {
+    cardId: result.targetId,
+    text: result.action === "share_produce" ? "Thank you. I’ll remember what you shared." : "I’m glad we had this moment.",
+  };
+  clearTimeout(personBubbleTimer);
+  personBubbleTimer = setTimeout(() => {
+    personBubble = null;
+    render();
+  }, 3200);
+}
+
+function blockedInteractionFeedback(sourceId, targetId) {
+  const source = findCard(state, sourceId);
+  const target = findCard(state, targetId);
+  const carried = source?.typeId === "farmer" ? carriedItem(state, source.id) : null;
+  if (!source || !target) return null;
+  if (carried?.typeId === "hoe" && target.typeId === "wild_soil") {
+    return "Wild Soil still has grass. Use the Sickle first; the Hoe works on Cleared Ground.";
+  }
+  if (carried?.typeId === "sickle" && target.typeId === "cleared_ground") {
+    return "The grass is already cut. Use the Hoe to turn Cleared Ground into a Plot.";
+  }
+  if (CARD_DEFS[target.typeId].personId) {
+    if (carried && CARD_DEFS[carried.typeId]?.cropState !== "produce") return "Only ordinary or Choice Produce can be shared.";
+    return "That moment is already remembered, or you have already spent time together today.";
+  }
+  return null;
 }
 
 function commitResult(result) {
   state = result.state;
   if (result.ok && result.action === "browse_store") storeOpen = true;
-  if (!result.ok) showToast(result.message);
+  capturePersonBubble(result);
   save();
   render();
+  const feedback = resultFeedback(result);
+  if (feedback) showToast(feedback);
 }
 
 function reset() {
   selectedCardId = null;
   inspectedCardId = null;
   storeOpen = false;
-  state = createGame();
+  chronicleOpen = true;
+  weatherOpen = false;
+  personBubble = null;
+  state = newSpring(state);
   save();
   render();
 }
 
 function bindEvents() {
+  document.querySelector("#view-weather")?.addEventListener("click", () => {
+    weatherOpen = true;
+    render();
+  });
+  document.querySelector("#close-weather-inspection")?.addEventListener("click", () => {
+    weatherOpen = false;
+    render();
+  });
+  document.querySelector("#weather-inspection-backdrop")?.addEventListener("click", (event) => {
+    if (event.target.id !== "weather-inspection-backdrop") return;
+    weatherOpen = false;
+    render();
+  });
+  document.querySelector("#view-chronicle")?.addEventListener("click", () => {
+    chronicleOpen = true;
+    render();
+  });
+  document.querySelector("#review-spring")?.addEventListener("click", () => {
+    chronicleOpen = false;
+    render();
+  });
   document.querySelector("#close-store")?.addEventListener("click", () => {
     storeOpen = false;
     render();
@@ -363,7 +485,9 @@ function bindEvents() {
     save();
     render();
   });
-  document.querySelector("#reset")?.addEventListener("click", reset);
+  document.querySelector("#reset")?.addEventListener("click", () => {
+    if (window.confirm("Begin a new Spring? This Prototype 2 run will be replaced.")) reset();
+  });
   document.querySelector("#free-hands")?.addEventListener("click", () => {
     selectedCardId = null;
     commitResult(freeHands(state));
@@ -443,12 +567,15 @@ function handleCardTap(cardId) {
     state = result.state;
     inspectedCardId = null;
     if (result.ok && result.action === "browse_store") storeOpen = true;
-    if (!result.ok) showToast(result.message);
+    capturePersonBubble(result);
     save();
     render();
+    const feedback = resultFeedback(result);
+    if (feedback) showToast(feedback);
     return;
   }
   const decision = tapDecision(state, selectedCardId, cardId);
+  let feedback = null;
   if (decision.kind === "select") selectedCardId = decision.cardId;
   if (decision.kind === "clear") selectedCardId = null;
   if (decision.kind === "resolve") {
@@ -456,11 +583,14 @@ function handleCardTap(cardId) {
     state = result.state;
     selectedCardId = null;
     if (result.ok && result.action === "browse_store") storeOpen = true;
-    if (!result.ok) showToast(result.message);
+    capturePersonBubble(result);
+    feedback = resultFeedback(result);
     save();
   }
-  if (decision.kind === "none" && selectedCardId) showToast("No direct interaction there.");
+  if (decision.kind === "none") feedback = blockedInteractionFeedback(selectedCardId ?? implicitSource, cardId)
+    ?? (selectedCardId ? "No direct interaction there." : null);
   render();
+  if (feedback) showToast(feedback);
 }
 
 function startHandDrag(event) {
@@ -643,6 +773,22 @@ function targetAtPoint(clientX, clientY) {
   return closest;
 }
 
+function cardAtPoint(clientX, clientY, ...excludedIds) {
+  const excluded = new Set(excludedIds.filter(Boolean));
+  let closest = null;
+  let distance = Infinity;
+  document.querySelectorAll("[data-card-id]").forEach((element) => {
+    if (excluded.has(element.dataset.cardId) || !pointInside(element, clientX, clientY)) return;
+    const rect = element.getBoundingClientRect();
+    const nextDistance = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
+    if (nextDistance < distance) {
+      closest = element.dataset.cardId;
+      distance = nextDistance;
+    }
+  });
+  return closest;
+}
+
 function endDrag(event) {
   if (!dragging || event.pointerId !== dragging.pointerId) return;
   const active = dragging;
@@ -662,20 +808,24 @@ function endDrag(event) {
     return;
   }
   const targetId = targetAtPoint(event.clientX, event.clientY);
+  const blockedTargetId = targetId ? null : cardAtPoint(event.clientX, event.clientY, active.id, active.companionId);
   const overHand = pointInside(document.querySelector("#hand"), event.clientX, event.clientY);
   const boardRect = document.querySelector("#world-board").getBoundingClientRect();
   const x = 100 * (event.clientX - boardRect.left - active.offsetX) / boardRect.width;
   const y = event.clientY - boardRect.top - active.offsetY;
+  let feedback = null;
   if (overHand) {
     const result = returnToHand(state, active.id);
     state = result.state;
-    if (!result.ok) showToast(result.message);
+    feedback = resultFeedback(result);
   } else if (targetId) {
     const result = resolveDrop(state, active.actionSourceId, targetId);
     state = result.state;
     if (result.ok && result.action === "browse_store") storeOpen = true;
-    if (!result.ok) showToast(result.message);
+    capturePersonBubble(result);
+    feedback = resultFeedback(result);
   } else {
+    if (blockedTargetId) feedback = blockedInteractionFeedback(active.actionSourceId, blockedTargetId);
     if (active.wasAttached) {
       state = returnToHand(state, active.id).state;
     } else {
@@ -690,6 +840,8 @@ function endDrag(event) {
   dragging = null;
   save();
   render();
+  if (feedback) showToast(feedback);
 }
 
+save();
 render();

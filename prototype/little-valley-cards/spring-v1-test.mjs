@@ -208,7 +208,7 @@ for (const cropId of cropIds) {
   assert.equal(persistent.cards.filter((item) => item.meta.isLand).length, 3);
 }
 
-for (const version of [16, 17, 18, 19, 20]) {
+for (const version of [16, 17, 18, 19, 20, 21]) {
   const old = createGame();
   old.version = version;
   delete old.memoryBook;
@@ -237,13 +237,13 @@ assert.equal(simulateBalance("quality", { weeks: 4 }).careMemories, 5, "the Qual
 
 const app = await readFile(new URL("./app.js", import.meta.url), "utf8");
 const styles = await readFile(new URL("./styles.css", import.meta.url), "utf8");
-assert.match(app, /quality-choice/);
-assert.match(app, /tended-crop/);
+assert.match(app, /cardPresentation/);
+assert.match(app, /family-\$\{view\.family\}/);
 assert.match(app, /journal-memories/);
 assert.match(app, /crop\.choiceProduceTypeId/);
 assert.match(app, /Object\.values\(CROPS\)/, "Store and Hand derive their five-crop roster from shared data");
-assert.match(styles, /\.world-card\.quality-choice/);
-assert.match(styles, /\.world-card\.tended-crop/);
+assert.match(styles, /\.family-crop/);
+assert.doesNotMatch(styles, /\.world-card\.quality-choice|\.world-card\.tended-crop/);
 
 console.log("Spring Farming v1 tests passed: five crops, shared Quality, memory Journal, deterministic balance, finite Land, migration, rain, shipping and Week persistence are covered.");
 

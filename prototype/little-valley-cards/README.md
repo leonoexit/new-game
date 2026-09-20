@@ -2,9 +2,11 @@
 
 Cards persist as physical objects in a portrait farm world. The board holds the active world; the lower screen is the Hand of persistent physical cards; money is a HUD value rather than a card.
 
-The current balance experiment is a seven-day **Spring Week**. The HUD shows `Spring · Day n/7`; ending day 7 closes the season and opens a compact summary.
+The active build is **Prototype 2 — One Spring, One Life**. It keeps Prototype 1's shared card grammar, farming systems and three prototype-only residents, then places them inside a finite 14-day run with a visible Spring condition and a final evidence-derived Chronicle. The player starts freely on day 1; the Chronicle interprets the life that emerged instead of asking for an objective up front. Person cards remain everyday presence and memory, not workers or dialogue trees.
 
-Spring weather is visible in both the HUD and Farm table. The reproducible prototype forecast places a gentle rainy day on day 6; rain automatically waters prepared plots and thirsty crops without spending AP.
+The HUD shows `Spring · Day n/14`. Day 7 pauses at a Week Journal; day 14 resolves overnight growth and shipping once, then ends at the Spring Chronicle. A new Spring begins from clean Prototype 2 state under a new deterministic seed.
+
+Spring weather is a persistent information card on every Area table as well as a visual condition of the Farm. Tap it to inspect the seeded Gentle Spring or Dry Spring condition and its fixed 14-day forecast. Rain automatically waters prepared plots and thirsty crops without spending AP; reloading never redraws the forecast.
 
 The world uses separate Area tables. The current Area's Landmark is face-up on its table, while the destination Landmark is in the Hand. Dragging the destination onto the table swaps the two and travels; there is no carousel browse state.
 
@@ -15,7 +17,7 @@ cd /Volumes/LeNguyen02SSD/Programming/new-game/prototype/little-valley-cards
 python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
-Open <http://127.0.0.1:8080/>. State saves locally. **Reset farm** starts clean.
+Open <http://127.0.0.1:8080/>. Prototype 2 uses its own local save namespace. **New Spring** starts a clean seeded run without reading or overwriting Prototype 1 saves.
 
 ## Hand
 
@@ -108,9 +110,28 @@ Radish adds a harvest-timing decision. After one watered night, the Land becomes
 
 ## Shared Quality and care memories
 
-Quality is deterministic and never depends on perfect watering or a random roll. With free hands, drag a thirsty, watered or Baby crop onto Farmer—or use the equivalent tap path—to **Tend** it for 1 AP. The crop card becomes visibly Tended. Its next harvest transforms into a separate gold **Choice** Produce card.
+Quality is deterministic and never depends on perfect watering or a random roll. With free hands, drag a thirsty, watered or Baby crop onto Farmer—or use the equivalent tap path—to **Tend** it for 1 AP. The crop card shows a Tended primary status. Its next harvest transforms into a separate **Choice** Produce card with the same shared Item-family frame and a Choice status.
 
 Choice Produce consolidates separately from ordinary Produce and ships at the same coin rate. Its lasting value is the farm's memory book: the first Choice harvest and the first Choice harvest of every crop become persistent care memories. Green Bean care resets each regrow cycle; Potato care survives the first dig and covers both batches. Removing a crop erases its pending care and produces nothing. The outcome is persisted and deterministic, so reloading cannot improve it.
+
+## Card UI grammar v0.1
+
+World, Hand, Store and Inspection now derive from `card-presentation.js`. Every face reads family and one primary status first, then art, title, and a fixed progress or quantity position. Paper, artwork wells and physical shadows stay neutral; teal, green, ochre, blue-gray, amber, brown and plum border/header accents identify Person, Crop, Land, Tool, Item, Landmark and Service families.
+
+Choice and Tended no longer recolor an entire card. Relationship, Quality, tool charge, shipment and Landmark state each occupy the same single status slot. Cyan source selection and gold targeting remain separate interaction overlays. Full prose stays in hold/Inspection. The authoritative rules are in `CARD-UI-GRAMMAR-V0.1.md`.
+
+## Person Presence & Memory v0.1
+
+Mira, Bram and Nell are persistent world cards on a repeating seven-day schedule, with no more than two present on any day. Absent residents remain in the save but do not render. Present cards can be rearranged, but never enter Hand and cannot perform work.
+
+- Free-handed Farmer → Person spends 1 AP to spend time.
+- Farmer carrying ordinary or Choice Produce → Person spends 1 AP and exactly one Produce to share it.
+- Tools and Seeds cannot be shared; each Person accepts one moment per day.
+- Repeating the same area/weather or crop/quality memory is rejected without cost.
+- Relationship is derived from distinct memories: `Familiar` at two; `Close` at four across at least two dates with at least one Share.
+- A preference match changes memory and Journal emphasis only; it grants no resource or relationship-speed bonus.
+
+Person cards show only `New`, `Familiar` or `Close`. After a successful Spend Time or Share action, a short speech bubble anchored to that Person confirms the interaction. Hold reveals identity, weekly rhythm, interests and remembered moments. The bubble is immediate feedback, not a conversation modal or dialogue tree. Full behavior is defined in `PERSON-LIFE-V0.1-DESIGN.md`.
 
 ## Day-only time experiment
 
@@ -123,13 +144,15 @@ Time now has two explicit overnight effects:
 
 There is no hidden clock. Work and Area travel spend visible AP; Tool changes and purchases are free. The General Store is always open but only usable in Town.
 
-## Spring Week v0.1
+## One Spring run
 
-- Spring lasts seven playable days; this is a test horizon, not the canonical season length.
-- The final End Day still advances watered crops and pays the Shipping Bin, then stops day progression.
-- A Weekly Journal recalls first harvests, crop discoveries, first Choice harvests and completed-week milestones. Shipment and living-crop notes remain prose rather than a score table.
-- **Continue farm** begins the next Spring Week while preserving Land, crops, Tools, supplies and coins.
-- **Reset farm** remains a separate full restart. Week boundaries never wither or remove crops.
+- Spring lasts 14 playable days across two seven-day chapters; this is a prototype run length, not a canonical season claim.
+- Day 1 begins immediately under one deterministic condition—Gentle Spring or Dry Spring—with no objective selection.
+- `Care for the Land` and `Know Your Neighbors` are interpretive life paths derived from existing Choice crop memories and relationship Memory. They never constrain play or grant buffs, AP or hidden acceleration.
+- Day 7 opens a Weekly Journal. **Begin Week 2** continues the same Land, crops, Tools, supplies, coins and Memory on day 8.
+- The final End Day advances watered crops and pays the Shipping Bin exactly once, then opens the Spring Chronicle.
+- The Chronicle recalls farm state, people, broad AP emphasis and the life path that emerged. It never assigns a score or treats another path as unfinished work.
+- **New Spring** creates a clean seed and condition, then begins day 1 directly. It never advances into day 15.
 
 ## Action Point v0.1
 
@@ -148,6 +171,7 @@ play Hoe -> till Cleared Ground into the second Plot
 play Watering Can -> refill at Well
 water then sow, or sow then water
 optionally drag a growing crop onto Farmer -> Tend for a Choice harvest
+meet a present Person -> Spend Time, or carry Produce to Share
 End Day -> watered crops advance and become thirsty
 water growing crops again
 End Day -> crops mature
@@ -155,6 +179,9 @@ Return item -> pull Mature Carrots -> Carrots enter Hand
 play Carrots -> ship
 End Day -> shipment pays
 repeat with persistent Tools and growing coin total
+Day 7 -> review the Week Journal -> Begin Week 2
+Day 14 -> resolve the final night -> read the Spring Chronicle
+New Spring -> begin freely and let another life emerge
 ```
 
 ## Interaction
@@ -176,8 +203,8 @@ Farm and Town use distinct generated native-pixel table backgrounds rather than 
 
 ## Intentional scope
 
-- One Farmer, one of each Tool, exactly three finite persistent fields, five Spring crops, one Well, one General Store, one Shipping Bin and two Areas with one Landmark each.
-- No draw pile, dialogue, relationship UI, Weather, multiple seasons, NPC or location graph. Spring Week is a deliberately narrow crop-balance slice.
+- One Farmer, three prototype-only residents, one of each Tool, exactly three finite persistent fields, five Spring crops, one Well, one General Store, one Shipping Bin and two Areas with one Landmark each.
+- No draw pile, dialogue UI, worker assignment, heart-point economy, multiple seasons or location graph. The 14-day Spring remains a deliberately narrow crop-and-life slice.
 - Hand is the presentation layer for persistent physical cards, not a second abstract item database.
 - Tool is a concrete behavior family; the rest of the ontology remains open.
 - The user is the hands-on tester. Automated tests cover the engine; Codex does not operate the browser unless explicitly requested.
@@ -188,7 +215,7 @@ Farm and Town use distinct generated native-pixel table backgrounds rather than 
 npm test
 ```
 
-The automated suite covers Hand membership, Landmark play, five-crop Store access, both sow/water orders for every crop, rain, removal, each harvest behavior, shared Quality, shipping, memory Journal, week persistence, exactly three Land, legacy save migrations and deterministic multi-week balance policies.
+The automated suite covers Hand membership, Landmark play, five-crop Store access, both sow/water orders for every crop, rain, removal, each harvest behavior, shared Quality, shipping, memory Journal, Week persistence, exactly three Land, v16–v21 migrations, the Person schedule and actions, relationship derivation, shared card presentation semantics, isolated Prototype 2 persistence, deterministic conditions, emergent life-path derivation, AP telemetry, the day-7/day-14 boundaries, Chronicle and New Spring.
 
 Run the reviewable balance model with:
 
@@ -196,4 +223,4 @@ Run the reviewable balance model with:
 npm run balance
 ```
 
-Its assumptions and latest deterministic results are stored in `BALANCE-REPORT.md`; the behavior contract is `SPRING-FARMING-V1-DESIGN.md`.
+Its assumptions and latest deterministic results are stored in `BALANCE-REPORT.md`. Foundation contracts are `SPRING-FARMING-V1-DESIGN.md`, `CARD-UI-GRAMMAR-V0.1.md` and `PERSON-LIFE-V0.1-DESIGN.md`. The active experiment is defined by `PROTOTYPE-2-BRIEF.md`; its hands-on checklist is `PROTOTYPE-2-PLAYTEST.md`.

@@ -1,4 +1,4 @@
-import { CARD_DEFS, GAME, cropForType } from "./data.js";
+import { CARD_DEFS, GAME, PROTOTYPE_2, cropForType } from "./data.js";
 import {
   harvestQuality,
   produceTypeForHarvest,
@@ -179,5 +179,6 @@ function spendWaterCharge(wateringCan) {
 }
 
 export function seasonLabel(state) {
+  if (state.prototype === 2) return `${GAME.seasonName} · Day ${Math.min(state.day, PROTOTYPE_2.totalDays)}/${PROTOTYPE_2.totalDays}`;
   return `${GAME.seasonName} W${state.week ?? 1} · Day ${Math.min(state.day, GAME.seasonLengthDays)}/${GAME.seasonLengthDays}`;
 }

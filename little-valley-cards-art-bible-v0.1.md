@@ -14,7 +14,7 @@ Little Valley Cards should feel like holding a small, bright rural world in your
 |---|---:|---:|---|
 | Action illustration | 8:5 | 640×400 | one verb, one target, immediate readability |
 | Plot/crop illustration | 8:5 | 640×400 | crop and state readable behind UI overlays |
-| NPC portrait | 1:1 | 512×512 | stable identity and restrained expression |
+| Person portrait | 1:1 | 512×512 | stable identity and restrained expression |
 | Small item art | 1:1 | 256×256 | strong silhouette and minimal internal detail |
 
 The portrait screen and portrait-shaped card do not imply portrait artwork. UI owns the card shape; generated art only fills its measured illustration window.
@@ -42,9 +42,11 @@ The portrait screen and portrait-shaped card do not imply portrait artwork. UI o
 2. Review at `320x200` logical size.
 3. Change only one visual variable per iteration.
 4. Save the prompt and references with the study.
-5. Ask for explicit approval before marking a reference approved.
+5. Follow the current approval authority. The user explicitly approved Mira and delegated subsequent image review to Codex on 2026-09-20; record the reviewer and decision for every asset even when no separate approval pause is required.
 6. Only approved, processed assets enter runtime.
 
 ## Current approval state
 
-The farm reference approves rendering language. The Spring Farming v1 runtime has complete approved prototype families for Carrot, Green Bean, Potato, Cauliflower and Radish. Cauliflower dry/watered/mature, Seed and Produce assets and Radish dry/watered/baby/full, Seed and Produce assets passed review at their logical sizes on 2026-09-19; records live beside their sources and processed deliveries under `art/style-studies/`. Farmer, Tools, soil states, Well, Store, Shipping Bin, Landmarks and Area backgrounds also remain runtime approved. None of these assets define canonical NPC or protagonist identity.
+The farm reference approves rendering language. The Spring Farming v1 runtime has complete approved prototype families for Carrot, Green Bean, Potato, Cauliflower and Radish. Cauliflower dry/watered/mature, Seed and Produce assets and Radish dry/watered/baby/full, Seed and Produce assets passed review at their logical sizes on 2026-09-19; records live beside their sources and processed deliveries under `art/style-studies/`. Farmer, Tools, soil states, Well, Store, Shipping Bin, Landmarks and Area backgrounds also remain runtime approved.
+
+Mira, Bram and Nell are runtime approved only for Prototype 1. Their square portraits passed both 72px board and 142px Inspection review on 2026-09-20, with source, 512×512 delivery, previews, prompt and decision beside each study. They test the Person-art contract and do not establish canonical cast identity.

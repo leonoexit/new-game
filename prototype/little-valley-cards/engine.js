@@ -1,6 +1,33 @@
-import { ACTION_COSTS, AREAS, CARD_DEFS, CROPS, GAME, cropForType, weatherForDay } from "./data.js";
+import {
+  ACTION_COSTS,
+  AREAS,
+  CARD_DEFS,
+  CROPS,
+  GAME,
+  PEOPLE,
+  PROTOTYPE_2,
+  cropForType,
+  prototype2WeatherForDay,
+  weatherForDay,
+} from "./data.js";
 import { advanceGrowingCrops, applyCropJob, applyRainToFarm, cropActionFor } from "./crop-system.js";
 import { canTendCrop, ensureFarmMemory, recordMilestoneMemory, tendCrop } from "./quality-system.js";
+import {
+  applyPersonMoment,
+  availablePersonAction,
+  ensurePeopleMemory,
+  personForCard,
+  relationshipStateFor,
+  syncPeopleForDate,
+} from "./person-system.js";
+import {
+  buildSpringChronicle,
+  createRunRecord,
+  ensureRunRecord,
+  lifePathProgress,
+  lifePathProgresses,
+  recordActionPointUse,
+} from "./run-system.js";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -11,7 +38,7 @@ function card(id, typeId, x, y, meta = {}) {
 }
 
 export function createGame() {
-  return {
+  const state = {
     version: GAME.version,
     phase: "playing",
     week: 1,
@@ -22,7 +49,7 @@ export function createGame() {
     coins: 3,
     seasonStats: { coinsEarned: 0, harvestCount: 0, memories: [] },
     seasonSummary: null,
-    memoryBook: { discoveries: [], firstHarvest: null, firstQuality: null, choiceCrops: [], milestones: [] },
+    memoryBook: { discoveries: [], firstHarvest: null, firstQuality: null, choiceCrops: [], milestones: [], people: {} },
     cards: [
       card("farmer", "farmer", 4, 38, { areaId: "farm" }),
       card("farm-landmark", "home_farm_landmark", 67, 30, { areaId: "farm", fixed: true }),
@@ -36,14 +63,61 @@ export function createGame() {
       card("sickle", "sickle", 0, 0, { inHand: true }),
       card("store", "general_store", 35, 160, { areaId: "town" }),
       card("shipping", "shipping_bin", 67, 350, { shipments: [], areaId: "farm" }),
+      card("person-mira", "mira", 66, 330, { personId: "mira" }),
+      card("person-bram", "bram", 66, 430, { personId: "bram" }),
+      card("person-nell", "nell", 66, 330, { personId: "nell" }),
     ],
     milestones: { firstSixCoins: false },
     lastMessage: `Day 1 begins with ${GAME.actionPointsPerDay} AP. One Plot is ready; two patches are still wild.`,
   };
+  ensurePeopleMemory(state);
+  return syncPeopleForDate(state);
+}
+
+export function createPrototype2Game({ seed = Date.now() } = {}) {
+  const state = createGame();
+  state.version = PROTOTYPE_2.version;
+  state.prototype = 2;
+  state.phase = "playing";
+  state.run = createRunRecord(seed);
+  state.weather = prototype2WeatherForDay(state.run.conditionId, 1);
+  state.lastMessage = `Day 1 begins with ${GAME.actionPointsPerDay} AP. Let this Spring take its own shape.`;
+  return state;
+}
+
+export function hydratePrototype2Game(raw) {
+  if (!raw || raw.version !== PROTOTYPE_2.version || raw.prototype !== 2 || !Array.isArray(raw.cards)) {
+    return createPrototype2Game();
+  }
+  const source = clone(raw);
+  const sourceRun = clone(source.run ?? {});
+  const sourcePhase = source.phase;
+  source.version = GAME.version;
+  const state = hydrateGame(source);
+  state.version = PROTOTYPE_2.version;
+  state.prototype = 2;
+  state.phase = ["setup", "playing", "weekly_journal", "spring_chronicle"].includes(sourcePhase)
+    ? (sourcePhase === "setup" ? "playing" : sourcePhase)
+    : "setup";
+  state.day = clamp(Number(raw.day) || 1, 1, PROTOTYPE_2.totalDays);
+  state.week = state.day > GAME.seasonLengthDays ? 2 : 1;
+  state.run = sourceRun;
+  ensureRunRecord(state);
+  state.weather = prototype2WeatherForDay(state.run.conditionId, state.day);
+  if (["weekly_journal", "spring_chronicle"].includes(state.phase)) state.actionPoints = 0;
+  if (state.phase === "setup") state.actionPoints = GAME.actionPointsPerDay;
+  if (state.phase === "spring_chronicle" && !state.run.chronicle) {
+    state.run.chronicle = buildSpringChronicle(state);
+  }
+  return syncPeopleForDate(state, { preservePositions: true });
+}
+
+export function newSpring(state, seed = ensureRunRecord(state).seed + 1) {
+  return createPrototype2Game({ seed });
 }
 
 export function hydrateGame(raw) {
-  if (!raw || ![16, 17, 18, 19, 20, GAME.version].includes(raw.version) || !Array.isArray(raw.cards)) return createGame();
+  if (!raw || ![16, 17, 18, 19, 20, 21, GAME.version].includes(raw.version) || !Array.isArray(raw.cards)) return createGame();
   const state = clone(raw);
   state.version = GAME.version;
   if (!Number.isFinite(state.day)) state.day = 1;
@@ -57,6 +131,7 @@ export function hydrateGame(raw) {
   state.seasonStats.memories = Array.isArray(state.seasonStats.memories) ? state.seasonStats.memories : [];
   state.seasonSummary ??= null;
   ensureFarmMemory(state);
+  ensurePeopleMemory(state);
   const hadOldSeasonBoundary = ["season_summary", "season_cleanup"].includes(state.phase)
     || state.cards.some((item) => item.typeId === "crop_remains");
   if (hadOldSeasonBoundary) {
@@ -76,6 +151,12 @@ export function hydrateGame(raw) {
   if (!state.cards.some((item) => item.id === "soil3")) {
     state.cards.push(card("soil3", "wild_soil", 35, 310, { areaId: "farm", isLand: true }));
   }
+  Object.values(PEOPLE).forEach((person) => {
+    if (!state.cards.some((item) => item.id === person.cardId)) {
+      const firstAppearance = person.schedule[0];
+      state.cards.push(card(person.cardId, person.typeId, firstAppearance.x, firstAppearance.y, { personId: person.id }));
+    }
+  });
   const shippingBin = state.cards.find((item) => item.typeId === "shipping_bin");
   if (shippingBin) {
     shippingBin.meta.shipments = Array.isArray(shippingBin.meta.shipments) ? shippingBin.meta.shipments : [];
@@ -86,7 +167,7 @@ export function hydrateGame(raw) {
     delete shippingBin.meta.amount;
   }
   consolidateStackableCards(state);
-  return state;
+  return syncPeopleForDate(state, { preservePositions: true });
 }
 
 function consolidateStackableCards(state) {
@@ -186,6 +267,8 @@ export function dropAction(state, sourceId, targetId) {
 
   if (source.typeId !== "farmer") return null;
   const carried = carriedItem(state, source.id);
+  const personAction = availablePersonAction(state, source, target, carried);
+  if (personAction) return personAction;
   if (target.typeId === "general_store") return "browse_store";
   const cropAction = cropActionFor(carried, target);
   if (cropAction) return cropAction;
@@ -247,6 +330,9 @@ export function returnToHand(state, itemId) {
 }
 
 export function freeHands(state) {
+  if (state.phase !== "playing") {
+    return { state: clone(state), ok: false, message: "The Spring is not accepting more card changes." };
+  }
   const farmer = state.cards.find((item) => item.typeId === "farmer");
   const carried = farmer && carriedItem(state, farmer.id);
   if (!carried) {
@@ -257,6 +343,9 @@ export function freeHands(state) {
 
 export function equipFromHand(state, itemId) {
   const next = clone(state);
+  if (next.phase !== "playing") {
+    return { state: next, ok: false, message: "The Spring is not accepting more card changes." };
+  }
   const farmer = next.cards.find((item) => item.typeId === "farmer");
   const item = findCard(next, itemId);
   if (!farmer || !item?.meta.inHand || !isPortable(item)) {
@@ -279,6 +368,9 @@ export function equipFromHand(state, itemId) {
 }
 
 export function playFromHand(state, itemId) {
+  if (state.phase !== "playing") {
+    return { state: clone(state), ok: false, message: "The Spring is not accepting more card changes." };
+  }
   const item = findCard(state, itemId);
   if (!item?.meta.inHand) {
     return { state: clone(state), ok: false, message: "That card is not in the Hand." };
@@ -317,6 +409,7 @@ export function travelToArea(state, areaId, landmarkId = null) {
     carried.y = clamp(farmer.y + 32, 30, BOARD_MAX_Y);
   }
   next.actionPoints -= cost;
+  recordActionPointUse(next, "travel", cost);
   next.lastMessage = `Farmer travelled to ${destination.name}. ${cost} AP spent · ${next.actionPoints}/${GAME.actionPointsPerDay} AP left.`;
   return { state: next, ok: true, action: "travel", message: next.lastMessage };
 }
@@ -418,6 +511,11 @@ export function resolveDrop(state, sourceId, targetId) {
     events.push(`Farmer tends the ${crop?.name ?? "crop"}. Its next harvest will become a visible Choice card.`);
   }
 
+  if (["spend_time", "share_produce"].includes(action)) {
+    const produce = action === "share_produce" ? carriedItem(next, source.id) : null;
+    applyPersonMoment(next, action, target, produce, events);
+  }
+
   if (["clear_grass", "till_soil", "refill_watering_can", "water_plot", "sow", "sow_watered", "water_crop", "harvest_crop", "remove_crop"].includes(action)) {
     finishJob(next, {
       kind: action,
@@ -429,11 +527,12 @@ export function resolveDrop(state, sourceId, targetId) {
 
   if (cost > 0) {
     next.actionPoints -= cost;
+    recordActionPointUse(next, action, cost);
     events.push(`${cost} AP spent · ${next.actionPoints}/${GAME.actionPointsPerDay} AP left.`);
   }
 
   next.lastMessage = events.join(" ");
-  return { state: next, ok: true, action, message: next.lastMessage, events };
+  return { state: next, ok: true, action, targetId, message: next.lastMessage, events };
 }
 
 function finishJob(state, job, events) {
@@ -516,11 +615,18 @@ export function endDay(state) {
     next.milestones.firstSixCoins = true;
     recordMilestoneMemory(next, "six-coins", "The farm brought six coins home for the first time.");
   }
-  const seasonEnded = next.day >= GAME.seasonLengthDays;
+  const prototype2 = next.prototype === 2;
+  const weekEnded = prototype2 && next.day === GAME.seasonLengthDays;
+  const springEnded = prototype2 && next.day >= PROTOTYPE_2.totalDays;
+  const seasonEnded = prototype2 ? (weekEnded || springEnded) : next.day >= GAME.seasonLengthDays;
   if (!seasonEnded) {
     next.day += 1;
-    next.weather = weatherForDay(next.day);
+    next.week = prototype2 && next.day > GAME.seasonLengthDays ? 2 : next.week;
+    next.weather = prototype2
+      ? prototype2WeatherForDay(ensureRunRecord(next).conditionId, next.day)
+      : weatherForDay(next.day);
     if (next.weather === "rainy") applyRainToFarm(next, events);
+    syncPeopleForDate(next);
   }
   next.actionPoints = GAME.actionPointsPerDay;
   const farmer = next.cards.find((item) => item.typeId === "farmer");
@@ -538,12 +644,17 @@ export function endDay(state) {
   if (earned > 0) events.push(`${shipment.amount} produce brought ${earned} shipment coins home.`);
   if (reachedFirstMilestone) events.push("The farm reached its first six-coin milestone.");
   if (seasonEnded) {
-    next.phase = "weekly_journal";
+    next.phase = springEnded ? "spring_chronicle" : "weekly_journal";
     next.actionPoints = 0;
     const cropsGrowing = next.cards.filter((item) => ["thirsty", "watered", "early_ready", "ready", "partial_harvest"].includes(CARD_DEFS[item.typeId]?.cropState)).length;
     recordMilestoneMemory(next, `week-${next.week}`, `${GAME.seasonName} Week ${next.week} became part of the farm's story.`);
     next.seasonSummary = { ...next.seasonStats, cropsGrowing };
-    events.push(`${GAME.seasonName} Week ${next.week} is complete. The farm carries on.`);
+    if (springEnded) {
+      next.run.chronicle = buildSpringChronicle(next);
+      events.push(`${GAME.seasonName} is complete. Its Chronicle is ready.`);
+    } else {
+      events.push(`${GAME.seasonName} Week ${next.week} is complete. The farm carries on.`);
+    }
   } else {
     events.push(`Day ${next.day} begins at Home Farm with ${GAME.actionPointsPerDay} AP.`);
   }
@@ -556,20 +667,35 @@ export function continueFarm(state) {
   if (next.phase === "weekly_journal") {
     next.phase = "playing";
     next.week += 1;
-    next.day = 1;
-    next.weather = weatherForDay(1);
+    next.day = next.prototype === 2 ? 8 : 1;
+    next.weather = next.prototype === 2
+      ? prototype2WeatherForDay(ensureRunRecord(next).conditionId, next.day)
+      : weatherForDay(1);
     next.actionPoints = GAME.actionPointsPerDay;
     next.seasonStats = { coinsEarned: 0, harvestCount: 0, memories: [] };
     next.seasonSummary = null;
+    syncPeopleForDate(next);
     next.lastMessage = `${GAME.seasonName} Week ${next.week} begins. The same farm continues with ${GAME.actionPointsPerDay} AP.`;
   }
   return next;
 }
 
+export { lifePathProgresses };
+export { lifePathProgress };
+
 export function currentHint(state) {
   const farmer = state.cards.find((item) => item.typeId === "farmer");
   const carried = farmer && carriedItem(state, farmer.id);
   const queuedShipment = shipmentTotals(state);
+  const presentPerson = state.cards.find((item) => personForCard(item)
+    && cardArea(state, item) === farmerArea(state)
+    && availablePersonAction(state, farmer, item, carried));
+  if (presentPerson) {
+    const person = personForCard(presentPerson);
+    return carried
+      ? `${person.name} is here. Share one carried Produce, or return it to spend time together.`
+      : `${person.name} is here. Farmer can spend time for 1 AP.`;
+  }
   if (farmerArea(state) === "town") {
     if (state.coins >= Math.min(...Object.values(CROPS).map((crop) => crop.seedBundleCost))) return "The General Store has Spring Seeds to choose from. Drag Home Farm onto the table when ready.";
     return "Valley Town is open to inspect. Drag the Home Farm Landmark onto the table to return.";
@@ -597,6 +723,7 @@ export function currentHint(state) {
 
 export function cardLabel(state, item) {
   const definition = CARD_DEFS[item.typeId];
+  if (definition.personId) return `${definition.name} · ${relationshipStateFor(state, definition.personId)}`;
   if (definition.kind === "Person") {
     const carried = carriedItem(state, item.id);
     if (carried) return `${definition.name} · Carrying ${CARD_DEFS[carried.typeId].name}`;

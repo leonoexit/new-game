@@ -1,5 +1,5 @@
 export const GAME = Object.freeze({
-  version: 21,
+  version: 22,
   goalCoins: 6,
   cropGrowthDays: 2,
   actionPointsPerDay: 8,
@@ -8,12 +8,63 @@ export const GAME = Object.freeze({
   weatherByDay: Object.freeze(["sunny", "sunny", "sunny", "sunny", "sunny", "rainy", "sunny"]),
   farmFieldCapacity: 3,
   wateringCanCapacity: 2,
-  storageKey: "little-valley-physical-board-v21",
-  legacyStorageKeys: Object.freeze(["little-valley-physical-board-v20", "little-valley-physical-board-v19", "little-valley-physical-board-v18", "little-valley-physical-board-v17", "little-valley-physical-board-v16"]),
+  storageKey: "little-valley-physical-board-v22",
+  legacyStorageKeys: Object.freeze(["little-valley-physical-board-v21", "little-valley-physical-board-v20", "little-valley-physical-board-v19", "little-valley-physical-board-v18", "little-valley-physical-board-v17", "little-valley-physical-board-v16"]),
 });
 
 export function weatherForDay(day) {
   return GAME.weatherByDay[(Math.max(1, day) - 1) % GAME.weatherByDay.length];
+}
+
+export const PROTOTYPE_2 = Object.freeze({
+  version: 23,
+  storageKey: "little-valley-one-spring-v23",
+  totalDays: 14,
+  conditions: Object.freeze({
+    gentle_spring: Object.freeze({
+      id: "gentle_spring",
+      name: "Gentle Spring",
+      description: "Frequent rain releases some watering pressure without changing crop value.",
+      weatherByDay: Object.freeze([
+        "sunny", "rainy", "sunny", "sunny", "rainy", "sunny", "rainy",
+        "sunny", "rainy", "sunny", "sunny", "rainy", "sunny", "rainy",
+      ]),
+    }),
+    dry_spring: Object.freeze({
+      id: "dry_spring",
+      name: "Dry Spring",
+      description: "Rain is scarce, so watering and refill AP remain a steady commitment.",
+      weatherByDay: Object.freeze([
+        "sunny", "sunny", "sunny", "sunny", "sunny", "rainy", "sunny",
+        "sunny", "sunny", "sunny", "sunny", "sunny", "rainy", "sunny",
+      ]),
+    }),
+  }),
+  paths: Object.freeze({
+    care_for_land: Object.freeze({
+      id: "care_for_land",
+      name: "Care for the Land",
+      description: "Record Choice harvest memories for three different crops.",
+      target: 3,
+    }),
+    know_neighbors: Object.freeze({
+      id: "know_neighbors",
+      name: "Know Your Neighbors",
+      description: "Become Close with one resident and Familiar with another.",
+      target: 2,
+    }),
+  }),
+});
+
+export function prototype2ConditionForSeed(seed) {
+  const conditionIds = Object.keys(PROTOTYPE_2.conditions);
+  return PROTOTYPE_2.conditions[conditionIds[Math.abs(Number(seed) || 0) % conditionIds.length]];
+}
+
+export function prototype2WeatherForDay(conditionId, day) {
+  const condition = PROTOTYPE_2.conditions[conditionId] ?? PROTOTYPE_2.conditions.gentle_spring;
+  const index = Math.max(1, Math.min(PROTOTYPE_2.totalDays, Number(day) || 1)) - 1;
+  return condition.weatherByDay[index];
 }
 
 export const CROPS = Object.freeze({
@@ -148,12 +199,71 @@ export const ACTION_COSTS = Object.freeze({
   harvest_crop: 1,
   tend_crop: 1,
   remove_crop: 1,
+  spend_time: 1,
+  share_produce: 1,
 });
 
 export const AREAS = Object.freeze([
   Object.freeze({ id: "farm", name: "Home Farm", landmarkId: "farm-landmark" }),
   Object.freeze({ id: "town", name: "Valley Town", landmarkId: "town-landmark" }),
 ]);
+
+export const PEOPLE = Object.freeze({
+  mira: Object.freeze({
+    id: "mira",
+    cardId: "person-mira",
+    typeId: "mira",
+    name: "Mira",
+    summary: "A quiet young neighbor who notices deliberate care and patient crops.",
+    interests: Object.freeze({
+      crops: Object.freeze(["cauliflower"]),
+      qualities: Object.freeze(["choice"]),
+      weather: Object.freeze([]),
+      areas: Object.freeze([]),
+    }),
+    schedule: Object.freeze([
+      Object.freeze({ day: 1, areaId: "town", x: 66, y: 330 }),
+      Object.freeze({ day: 4, areaId: "town", x: 5, y: 350 }),
+      Object.freeze({ day: 7, areaId: "town", x: 66, y: 330 }),
+    ]),
+  }),
+  bram: Object.freeze({
+    id: "bram",
+    cardId: "person-bram",
+    typeId: "bram",
+    name: "Bram",
+    summary: "A reserved older neighbor who pays attention to rain and root crops.",
+    interests: Object.freeze({
+      crops: Object.freeze(["potato", "radish"]),
+      qualities: Object.freeze([]),
+      weather: Object.freeze(["rainy"]),
+      areas: Object.freeze([]),
+    }),
+    schedule: Object.freeze([
+      Object.freeze({ day: 2, areaId: "farm", x: 4, y: 390 }),
+      Object.freeze({ day: 4, areaId: "town", x: 66, y: 350 }),
+      Object.freeze({ day: 6, areaId: "farm", x: 4, y: 390 }),
+    ]),
+  }),
+  nell: Object.freeze({
+    id: "nell",
+    cardId: "person-nell",
+    typeId: "nell",
+    name: "Nell",
+    summary: "An openhearted neighbor who delights in sunny days and varied harvests.",
+    interests: Object.freeze({
+      crops: Object.freeze(["carrot", "green_bean"]),
+      qualities: Object.freeze([]),
+      weather: Object.freeze(["sunny"]),
+      areas: Object.freeze([]),
+    }),
+    schedule: Object.freeze([
+      Object.freeze({ day: 2, areaId: "town", x: 66, y: 330 }),
+      Object.freeze({ day: 3, areaId: "town", x: 66, y: 330 }),
+      Object.freeze({ day: 5, areaId: "town", x: 66, y: 330 }),
+    ]),
+  }),
+});
 
 const art = (filename) => `./assets/${filename}`;
 
@@ -164,6 +274,30 @@ export const CARD_DEFS = Object.freeze({
     description: "Does the work, carries one item, and harvests mature crops by hand.",
     art: art("farmer.png"),
     artShape: "square",
+  },
+  mira: {
+    name: "Mira",
+    kind: "Person",
+    description: PEOPLE.mira.summary,
+    art: art("mira.png"),
+    artShape: "square",
+    personId: "mira",
+  },
+  bram: {
+    name: "Bram",
+    kind: "Person",
+    description: PEOPLE.bram.summary,
+    art: art("bram.png"),
+    artShape: "square",
+    personId: "bram",
+  },
+  nell: {
+    name: "Nell",
+    kind: "Person",
+    description: PEOPLE.nell.summary,
+    art: art("nell.png"),
+    artShape: "square",
+    personId: "nell",
   },
   wild_soil: {
     name: "Wild Soil",

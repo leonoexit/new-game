@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node smoke-test.mjs && node spring-v1-test.mjs",
+    "test": "node smoke-test.mjs && node spring-v1-test.mjs && node person-v1-test.mjs && node prototype2-test.mjs",
     "balance": "node balance-sim.mjs --write"
   }
 }

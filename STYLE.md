@@ -14,7 +14,7 @@ The phone screen may be portrait, but generated artwork follows its slot rather 
 
 - Action-card illustration: horizontal `8:5`, delivered at `640x400`, shown at `320x200` logical pixels.
 - Persistent farm/plot illustration: horizontal `8:5` unless a measured runtime slot replaces it.
-- NPC portrait: square `1:1`.
+- Person portrait: square `1:1`.
 - Card frame, title, cost, state, progress, targeting feedback and buttons are rendered by the game UI, never baked into artwork.
 
 ## Visual language
@@ -31,4 +31,6 @@ Avoid photorealism, painterly brushwork, smooth airbrush gradients, pixel filter
 
 ## Current status
 
-The rendering language is retained. The physical-board prototype now has runtime-approved complete crop families for Carrot, Green Bean, Potato, Cauliflower and Radish, plus Farmer, Tools, soil states, Well, Store, Shipping Bin, Landmarks and Area backgrounds. Cauliflower and Radish production records include source, processed delivery, logical-size preview, final prompt and delegated review decision under `art/style-studies/`. These assets validate prototype slots; they do not define canonical NPC or protagonist identity.
+The rendering language is retained. The physical-board prototype now has runtime-approved complete crop families for Carrot, Green Bean, Potato, Cauliflower and Radish, plus Farmer, Tools, soil states, Well, Store, Shipping Bin, Landmarks and Area backgrounds.
+
+Mira, Bram and Nell are approved 512×512 Person portraits for Prototype 1 only. Each has 72px board and 142px Inspection previews plus a complete record under `art/style-studies/character-card-*-v0.1/`. These studies validate the Person slot and mixed-age identity range; they do not define a canonical cast. Mira was explicitly approved by the user on 2026-09-20, after which the user delegated future image review to Codex. The full source/prompt/preview record remains required even when a separate approval pause is not.
